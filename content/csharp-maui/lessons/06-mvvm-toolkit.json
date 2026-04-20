@@ -1,0 +1,80 @@
+{
+  "id": "06-mvvm-toolkit",
+  "moduleId": "csharp-maui",
+  "title": "MVVM и CommunityToolkit.Mvvm",
+  "summary": "Паттерн MVVM (Model—View—ViewModel) в MAUI-приложениях. `CommunityToolkit.Mvvm` и генерация кода через `[ObservableObject]`, `[ObservableProperty]`, `[RelayCommand]`. Связывание команд с UI, async-команды, `CanExecute`. .NET 10 MAUI.",
+  "estimatedMinutes": 55,
+  "theory": {
+    "kind": "inline",
+    "value": "# MVVM\n\n**MVVM** (Model—View—ViewModel) — архитектурный паттерн для UI-приложений. Идея:\n\n- **Model** — чистые данные и бизнес-логика. Не знает о UI. Пример: `Asset`, `EmergencyRequest`, `InventoryItem`.\n- **View** — XAML-разметка. Декларативно описывает UI. Не содержит логики, только binding'и.\n- **ViewModel** — прослойка между Model и View. Хранит состояние экрана и команды. Знает о модели, **не знает о конкретных контролах**.\n\nПочему MVVM:\n\n1. **Тестируемость** — view-model можно тестировать без UI (никаких Android-эмуляторов в unit-тестах).\n2. **Переиспользование** — одна и та же view-model работает и на Android, и на Windows.\n3. **Разделение ответственности** — разметка отдельно, логика отдельно, данные отдельно. На WorldSkills требование «разделение слоёв» — в rubric.\n\n## Типичная структура проекта\n\n```\nKmgAssets/\n  Models/          // Asset.cs, Department.cs\n  ViewModels/      // AssetsPageViewModel.cs, AddAssetViewModel.cs\n  Views/           // AssetsPage.xaml, AddAssetPage.xaml\n  Services/        // AssetRepository.cs, INavigationService.cs\n```\n\nView связывается с ViewModel через `BindingContext`. ViewModel хранит ссылку на сервисы (репозиторий, навигация) и публикует свойства + команды.\n\n## CommunityToolkit.Mvvm\n\nРучная реализация `INotifyPropertyChanged` (урок 5) — шумная. **CommunityToolkit.Mvvm** — библиотека Microsoft с source-generator'ами, которые генерируют всю инфраструктуру за нас.\n\nУстановка:\n\n```bash\ndotnet add package CommunityToolkit.Mvvm\n```\n\n### [ObservableObject] + [ObservableProperty]\n\n```csharp\nusing CommunityToolkit.Mvvm.ComponentModel;\n\npublic partial class AssetViewModel : ObservableObject\n{\n    [ObservableProperty]\n    private string _name = string.Empty;\n\n    [ObservableProperty]\n    private bool _isActive = true;\n}\n```\n\nЗа кулисами source-generator создаёт:\n\n- Публичные свойства `Name`, `IsActive` поверх полей `_name`, `_isActive`.\n- Setter'ы, которые проверяют на равенство и шлют `PropertyChanged`.\n- Partial-хуки: `partial void OnNameChanged(string value)` — если объявишь такой метод, он вызовется после изменения.\n\n**Важно**: класс должен быть `partial` — генератор добавляет в него второй файл. Поле начинай с `_` или нижнего регистра — генератор возьмёт имя без префикса и с заглавной (`_name` → `Name`).\n\n### [RelayCommand]\n\nКоманда в MVVM — это объект с методами `Execute(param)` и `CanExecute(param)`. `[RelayCommand]` делает команду из обычного метода:\n\n```csharp\npublic partial class AssetsPageViewModel : ObservableObject\n{\n    [ObservableProperty]\n    private string _searchText = string.Empty;\n\n    public ObservableCollection<Asset> Assets { get; } = new();\n\n    [RelayCommand]\n    private async Task LoadAsync()\n    {\n        IsBusy = true;\n        var data = await _repo.GetAllAsync();\n        Assets.Clear();\n        foreach (var a in data) Assets.Add(a);\n        IsBusy = false;\n    }\n\n    [RelayCommand]\n    private void Delete(Asset asset) => Assets.Remove(asset);\n\n    [ObservableProperty]\n    private bool _isBusy;\n}\n```\n\nПолучаются свойства-команды: `LoadCommand` (типа `IAsyncRelayCommand`) и `DeleteCommand` (`IRelayCommand<Asset>`). Они привязываются из XAML:\n\n```xml\n<Button Text=\"Обновить\" Command=\"{Binding LoadCommand}\" />\n<Button Text=\"Удалить\"\n        Command=\"{Binding DeleteCommand}\"\n        CommandParameter=\"{Binding .}\" />\n```\n\n### CanExecute\n\nКнопка может сама включаться/выключаться, если у команды есть `CanExecute`:\n\n```csharp\n[RelayCommand(CanExecute = nameof(CanSave))]\nprivate async Task SaveAsync() { /* ... */ }\n\nprivate bool CanSave() => !string.IsNullOrWhiteSpace(Name) && !IsBusy;\n```\n\nЧтобы кнопка переоценила состояние, когда меняются зависимые свойства, укажи `[NotifyCanExecuteChangedFor(nameof(SaveCommand))]` на свойстве:\n\n```csharp\n[ObservableProperty]\n[NotifyCanExecuteChangedFor(nameof(SaveCommand))]\nprivate string _name = string.Empty;\n```\n\nТеперь при каждом изменении `Name` кнопка «Save» перепроверит `CanSave()`.\n\n### Async-команды и IsBusy\n\n`[RelayCommand]` на `async Task` методе генерирует `IAsyncRelayCommand`. Она автоматически:\n\n- Ставит `IsRunning = true` на время выполнения.\n- По умолчанию не запускает вторую копию, пока первая работает — защита от двойных кликов.\n\nДля ActivityIndicator удобно вручную держать `IsBusy`:\n\n```xml\n<ActivityIndicator IsRunning=\"{Binding LoadCommand.IsRunning}\"\n                   IsVisible=\"{Binding LoadCommand.IsRunning}\" />\n```\n\nИли связать с собственным `IsBusy` через `[NotifyPropertyChangedFor]`.\n\n## Подключение view-model к странице\n\nТри распространённых способа:\n\n### 1. Вручную в code-behind\n\n```csharp\npublic AssetsPage()\n{\n    InitializeComponent();\n    BindingContext = new AssetsPageViewModel(new AssetRepository());\n}\n```\n\nБыстро для прототипа, но завязано на конкретную реализацию репозитория.\n\n### 2. Через DI-контейнер (рекомендуемо)\n\nРегистрируем в `MauiProgram.cs`:\n\n```csharp\nbuilder.Services.AddSingleton<AssetRepository>();\nbuilder.Services.AddTransient<AssetsPageViewModel>();\nbuilder.Services.AddTransient<AssetsPage>();\n```\n\nИ принимаем через конструктор:\n\n```csharp\npublic AssetsPage(AssetsPageViewModel vm)\n{\n    InitializeComponent();\n    BindingContext = vm;\n}\n```\n\nMAUI сама создаст страницу и все зависимости. Это основной способ для реальных проектов — вернёмся в уроке 11 (DI).\n\n### 3. Через XAML (`<ContentPage.BindingContext>`)\n\n```xml\n<ContentPage.BindingContext>\n    <vm:AssetsPageViewModel />\n</ContentPage.BindingContext>\n```\n\nРаботает только если у view-model parameterless-конструктор.\n\n## Навигация и передача параметров\n\nMVVM запрещает ViewModel'у знать о странице. Для навигации используется либо `Shell.Current.GoToAsync(...)` (урок 8), либо `INavigationService` — абстракция, которую ты сам делаешь и инжектишь в view-model. В Session'ах KMG достаточно `Shell.GoToAsync`.\n\n## Что запомнить\n\n- MVVM = разделение UI (View) от логики (ViewModel) и данных (Model). Тестируемо и переиспользуемо.\n- `CommunityToolkit.Mvvm`: `ObservableObject`, `[ObservableProperty]`, `[RelayCommand]` убирают 90 % бойлерплейта.\n- `[NotifyCanExecuteChangedFor]` связывает свойства и `CanExecute`-зависимые команды.\n- Регистрируй view-model и страницу в DI (`MauiProgram.cs`) — это стандарт на WorldSkills."
+  },
+  "practice": [
+    {
+      "id": "mvvm-skeleton",
+      "title": "Переписать форму на MVVM",
+      "goal": "Перевести форму из урока 5 на CommunityToolkit.Mvvm и добавить команду сохранения с CanExecute.",
+      "steps": [
+        {
+          "id": "install-package",
+          "instruction": "Установи пакет `CommunityToolkit.Mvvm` в проект.",
+          "code": {
+            "language": "bash",
+            "full": "dotnet add package CommunityToolkit.Mvvm",
+            "explanation": "Это официальный пакет Microsoft. Он добавляет source-generator'ы; после установки нужно пересобрать проект, чтобы сгенерированные файлы попали в компиляцию."
+          },
+          "hints": [
+            "Если IDE не видит атрибуты — закрой и заново открой проект, либо перезапусти OmniSharp/Roslyn.",
+            "Версия пакета должна быть совместима с .NET 10; в большинстве случаев последняя стабильная подходит."
+          ]
+        },
+        {
+          "id": "observable-properties",
+          "instruction": "Перепиши `AssetViewModel` из урока 5 на `[ObservableProperty]`. Удали ручной `INotifyPropertyChanged` — он больше не нужен.",
+          "code": {
+            "language": "csharp",
+            "full": "using CommunityToolkit.Mvvm.ComponentModel;\nusing System.Collections.ObjectModel;\n\nnamespace KmgAssets.ViewModels;\n\npublic partial class AssetViewModel : ObservableObject\n{\n    [ObservableProperty]\n    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]\n    private string _name = string.Empty;\n\n    [ObservableProperty]\n    private bool _isActive = true;\n\n    [ObservableProperty]\n    private bool _isBusy;\n\n    public ObservableCollection<string> RecentAssets { get; } = new();\n}",
+            "explanation": "Класс стал `partial` — это обязательное требование source-generator'а. Поле `_name` превратится в свойство `Name`. `[NotifyCanExecuteChangedFor(nameof(SaveCommand))]` заставит команду `SaveCommand` (которую добавим следующим шагом) перепроверить `CanExecute` при каждом изменении Name."
+          },
+          "hints": [
+            "Имя поля — `_name` или `name` (строчная); генератор преобразует в `Name`.",
+            "Если забыл `partial` — увидишь ошибку `ObservableObject requires partial class`."
+          ]
+        },
+        {
+          "id": "relay-command",
+          "instruction": "Добавь команду `SaveAsync` через `[RelayCommand]`. Она проверяет `CanSave` (Name не пустой, не IsBusy), имитирует сохранение задержкой и добавляет запись в `RecentAssets`.",
+          "code": {
+            "language": "csharp",
+            "full": "using CommunityToolkit.Mvvm.Input;\n\npublic partial class AssetViewModel : ObservableObject\n{\n    // ... поля выше\n\n    [RelayCommand(CanExecute = nameof(CanSave))]\n    private async Task SaveAsync()\n    {\n        IsBusy = true;\n        try\n        {\n            await Task.Delay(500);  // имитация работы с БД\n            RecentAssets.Insert(0, Name);\n            Name = string.Empty;\n        }\n        finally\n        {\n            IsBusy = false;\n        }\n    }\n\n    private bool CanSave() =>\n        !string.IsNullOrWhiteSpace(Name) && !IsBusy;\n}",
+            "explanation": "`[RelayCommand]` генерирует свойство `SaveCommand` типа `IAsyncRelayCommand`. `CanExecute = nameof(CanSave)` связывает с методом-проверкой. `try/finally` гарантирует, что IsBusy сбросится даже при исключении."
+          },
+          "hints": [
+            "`SaveCommand.IsRunning` — готовое свойство async-команды; можно привязать к ActivityIndicator напрямую, без собственного IsBusy.",
+            "Если хочешь `IsBusy` и на других командах — вынеси в базовый класс или отдельное свойство, как здесь."
+          ]
+        },
+        {
+          "id": "bind-to-xaml",
+          "instruction": "В XAML привяжи Entry к `Name`, Button — к `SaveCommand`, CollectionView — к `RecentAssets`. ActivityIndicator — к `SaveCommand.IsRunning`.",
+          "code": {
+            "language": "xaml",
+            "full": "<ContentPage xmlns=\"http://schemas.microsoft.com/dotnet/2021/maui\"\n             xmlns:x=\"http://schemas.microsoft.com/winfx/2009/xaml\"\n             xmlns:vm=\"clr-namespace:KmgAssets.ViewModels\"\n             x:Class=\"KmgAssets.MainPage\"\n             x:DataType=\"vm:AssetViewModel\">\n    <VerticalStackLayout Padding=\"24\" Spacing=\"12\">\n        <Entry Placeholder=\"Asset Name\"\n               Text=\"{Binding Name, Mode=TwoWay}\" />\n\n        <Button Text=\"Сохранить\"\n                Command=\"{Binding SaveCommand}\" />\n\n        <ActivityIndicator IsRunning=\"{Binding SaveCommand.IsRunning}\"\n                           IsVisible=\"{Binding SaveCommand.IsRunning}\"\n                           Color=\"#512BD4\" />\n\n        <Label Text=\"Последние активы:\" FontAttributes=\"Bold\" />\n\n        <CollectionView ItemsSource=\"{Binding RecentAssets}\">\n            <CollectionView.ItemTemplate>\n                <DataTemplate x:DataType=\"x:String\">\n                    <Label Text=\"{Binding .}\" Padding=\"4,2\" />\n                </DataTemplate>\n            </CollectionView.ItemTemplate>\n        </CollectionView>\n    </VerticalStackLayout>\n</ContentPage>",
+            "explanation": "Кнопка автоматически становится неактивной, пока Name пуст или идёт сохранение — это работа `CanSave()` + `[NotifyCanExecuteChangedFor]`. `SaveCommand.IsRunning` — встроенное свойство async-команды, не надо ничего объявлять самому."
+          },
+          "hints": [
+            "Если хочешь красный стиль «Delete» (требование KMG) — задай `BackgroundColor=\"Red\" TextColor=\"White\"` или стиль в App.xaml.",
+            "Code-behind при таком подходе остаётся почти пустым — только `InitializeComponent()` и установка `BindingContext`."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": [
+    "task-session-1-kmg-assets",
+    "task-session-2-emergency-maintenance",
+    "task-session-3-preventive-maintenance",
+    "task-session-4-inventory-warehouse",
+    "task-session-5-inventory-dashboard"
+  ],
+  "prerequisites": ["05-data-binding"]
+}

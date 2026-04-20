@@ -1,0 +1,78 @@
+{
+  "id": "01-select-basics",
+  "moduleId": "sql-databases",
+  "title": "Основы SELECT в SSMS",
+  "summary": "Первое знакомство с MS SQL Server Management Studio (SSMS): подключение к серверу, выбор базы, написание и исполнение запроса. `SELECT`, выбор колонок, алиасы, `DISTINCT`, выражения в списке выбора. Таргет — MS SQL Server latest GA, T-SQL.",
+  "estimatedMinutes": 40,
+  "theory": {
+    "kind": "inline",
+    "value": "# SELECT — чтение строк из таблицы\n\nЛюбая работа с реляционной БД начинается с запроса: «достань мне вот эти данные». В MS SQL Server такой запрос пишется на диалекте **T-SQL** и исполняется в **SQL Server Management Studio (SSMS)** — стандартной IDE для MSSQL.\n\nВ этом уроке мы:\n\n1. Откроем SSMS, подключимся к локальному серверу и выберем рабочую БД.\n2. Напишем первый запрос `SELECT`, научимся выбирать нужные колонки и давать им алиасы.\n3. Разберёмся, зачем нужен `DISTINCT`, и как вычислять выражения прямо в списке выбора.\n\n## Что такое SELECT\n\n`SELECT` — это команда, которая **возвращает строки и колонки** из одной или нескольких таблиц. Она никогда не меняет данные — только читает их. Минимальная форма запроса:\n\n```sql\nSELECT <список_колонок>\nFROM <таблица>;\n```\n\nПример (на схеме KMG из Session 1):\n\n```sql\nSELECT * FROM Departments;\n```\n\n`*` означает «все колонки». Это удобно для беглого просмотра, но **в боевом коде так писать не принято**: колонки в таблице могут добавиться или переставиться, и запрос будет возвращать что-то неожиданное. Лучше перечислять нужные колонки явно:\n\n```sql\nSELECT ID, Name\nFROM Departments;\n```\n\n## Алиасы колонок\n\nКолонке можно дать другое имя на время вывода — это называется **алиас**. Алиасы полезны, когда колонка считается из выражения или когда оригинальное имя неудобное:\n\n```sql\nSELECT\n    Name AS DepartmentName,\n    ID   AS DepartmentId\nFROM Departments;\n```\n\nСлово `AS` опционально (`Name DepartmentName` работает так же), но с `AS` запрос читается лучше. Если алиас содержит пробел или зарезервированное слово — оберни его в квадратные скобки: `AS [Department Name]`.\n\n## Порядок клауз\n\nЗапрос выглядит сверху вниз, но SQL Server **исполняет** его в другом порядке:\n\n```\nFROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY\n```\n\nЭто важно: алиас колонки, объявленный в `SELECT`, **нельзя использовать в `WHERE`** — на момент выполнения `WHERE` этот алиас ещё не существует. В `ORDER BY` уже можно, потому что `ORDER BY` идёт после `SELECT`.\n\n## DISTINCT — убрать дубликаты\n\nЕсли в запросе встречаются повторяющиеся строки, их можно схлопнуть с помощью `DISTINCT`:\n\n```sql\nSELECT DISTINCT AssetGroupID\nFROM Assets;\n```\n\nЭтот запрос вернёт только **уникальные** значения `AssetGroupID`. `DISTINCT` применяется ко **всей строке**, а не к одной колонке, — учти это, если указываешь несколько колонок после `DISTINCT`.\n\n## Выражения в списке выбора\n\nВ `SELECT` можно класть не только имена колонок, но и выражения — арифметику, конкатенацию строк, вызовы функций. Пример:\n\n```sql\nSELECT\n    FirstName + ' ' + LastName AS FullName,\n    YEAR(GETDATE())           AS CurrentYear\nFROM Employees;\n```\n\nКонкатенация строк в T-SQL делается оператором `+` (в MySQL было бы `CONCAT(...)` или `||` — запомни разницу). `GETDATE()` возвращает текущие дату и время сервера; `YEAR(...)` извлекает год.\n\n## Комментарии и аккуратность\n\nT-SQL поддерживает две формы комментариев: строчный `-- вот так` и блочный `/* вот так */`. Используй их, чтобы отмечать «что проверяем» в сложных запросах.\n\nТочка с запятой `;` в конце запроса не обязательна для одиночных SELECT, но **сильно рекомендуется** — некоторые конструкции (CTE, MERGE) без неё просто сломаются, а привычка её ставить убережёт от неожиданных ошибок.\n\nТеперь — практика в SSMS."
+  },
+  "practice": [
+    {
+      "id": "first-queries",
+      "title": "Первые запросы в SSMS",
+      "goal": "Подключиться к серверу, открыть рабочую БД и выполнить несколько `SELECT` разной формы.",
+      "steps": [
+        {
+          "id": "connect-and-select-db",
+          "instruction": "Запусти SSMS, подключись к локальному серверу (`localhost` или `(local)\\SQLEXPRESS`), затем в дереве Object Explorer найди БД `Session1` (её надо заранее импортировать из скрипта `Session1-MsSQL.sql`). Открой новый запрос через `New Query` и сделай эту БД активной.",
+          "code": {
+            "language": "sql",
+            "full": "USE Session1;\nGO\n\nSELECT * FROM Departments;",
+            "explanation": "`USE Session1;` переключает текущую БД. `GO` — это разделитель батчей, специфичный для SSMS. `SELECT * FROM Departments;` вернёт все строки и все колонки таблицы."
+          },
+          "hints": [
+            "Если в Object Explorer не видно БД — сделай правый клик по узлу `Databases` и нажми `Refresh`.",
+            "Альтернатива `USE` — выпадающий список БД над окном запроса."
+          ]
+        },
+        {
+          "id": "pick-columns",
+          "instruction": "Напиши запрос, который возвращает только `ID` и `Name` из `Departments`. Не используй `*`.",
+          "code": {
+            "language": "sql",
+            "full": "SELECT ID, Name\nFROM Departments;",
+            "explanation": "Явное перечисление колонок делает запрос устойчивым к изменениям схемы — добавится новая колонка в `Departments`, наш запрос продолжит возвращать ровно то, что просили."
+          },
+          "hints": [
+            "Порядок колонок в `SELECT` определяет порядок колонок в результате — это может быть важно при экспорте в CSV."
+          ]
+        },
+        {
+          "id": "aliases",
+          "instruction": "Выведи `FirstName` и `LastName` из `Employees` как одну колонку `FullName` (через конкатенацию), плюс `ID` с алиасом `EmployeeId`.",
+          "code": {
+            "language": "sql",
+            "full": "SELECT\n    ID AS EmployeeId,\n    FirstName + ' ' + LastName AS FullName\nFROM Employees;",
+            "explanation": "Алиас даёт колонке понятное имя в результате. `'FirstName' + ' ' + 'LastName'` склеивает строки через пробел — это стандартная T-SQL конкатенация."
+          },
+          "hints": [
+            "Если `FirstName` или `LastName` может быть `NULL`, результат конкатенации тоже будет `NULL` — чтобы избежать, оберни в `ISNULL(FirstName, '')`.",
+            "В SQL Server есть и функция `CONCAT(FirstName, ' ', LastName)` — она игнорирует `NULL` и не ломается."
+          ]
+        },
+        {
+          "id": "distinct-values",
+          "instruction": "Получи список **уникальных** `AssetGroupID`, встречающихся в таблице `Assets`.",
+          "code": {
+            "language": "sql",
+            "full": "SELECT DISTINCT AssetGroupID\nFROM Assets;",
+            "explanation": "`DISTINCT` удаляет повторяющиеся строки из результата. В нашем случае актив — много, групп — мало, поэтому `DISTINCT` схлопнет десятки записей в список из 3–5 уникальных `AssetGroupID`."
+          },
+          "hints": [
+            "Если ты хочешь подсчитать, **сколько** разных групп — это делается через `COUNT(DISTINCT AssetGroupID)`, но агрегаты мы разберём в уроке 4.",
+            "`DISTINCT` применяется ко всей строке результата. `SELECT DISTINCT A, B` вернёт уникальные **пары** (A, B), а не независимо уникальные `A` и `B`."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": [
+    "task-session-1-kmg-assets",
+    "task-session-2-emergency-maintenance",
+    "task-session-3-preventive-maintenance",
+    "task-session-4-inventory-warehouse",
+    "task-session-5-inventory-dashboard"
+  ]
+}

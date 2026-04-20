@@ -1,0 +1,77 @@
+{
+  "id": "03-order-top-paging",
+  "moduleId": "sql-databases",
+  "title": "ORDER BY, TOP и пагинация (OFFSET/FETCH)",
+  "summary": "Сортировка результата: `ORDER BY` по одной и по нескольким колонкам, `ASC`/`DESC`, `NULLS` в сортировке. Ограничение количества строк через `TOP n` и `TOP n PERCENT`. Пагинация страницами — `OFFSET ... FETCH NEXT ... ROWS ONLY`. T-SQL.",
+  "estimatedMinutes": 40,
+  "theory": {
+    "kind": "inline",
+    "value": "# Сортировка и ограничение выборки\n\nВ предыдущих уроках мы выбирали и фильтровали строки, но **порядок** результата не гарантировался. SQL Server имеет полное право вернуть строки в любом порядке, который ему удобен — если ты не попросишь иначе через `ORDER BY`. В этом уроке разберёмся, как задавать порядок и как брать только первые N записей или конкретную страницу.\n\n## ORDER BY\n\n```sql\nSELECT AssetName, WarrantyDate\nFROM Assets\nORDER BY WarrantyDate ASC;\n```\n\n- `ASC` (по умолчанию) — от меньшего к большему, от старых к новым дат.\n- `DESC` — наоборот, от большего к меньшему.\n\nМожно сортировать по нескольким колонкам сразу — тогда второй ключ действует как tie-breaker при равных значениях первого:\n\n```sql\nORDER BY DepartmentID ASC, WarrantyDate DESC\n```\n\nСначала все активы сгруппируются по возрастанию `DepartmentID`, а внутри каждого департамента — по убыванию даты гарантии.\n\n### Сортировка по алиасу и выражению\n\nПосле `SELECT` все алиасы уже известны, поэтому **в `ORDER BY` можно ссылаться на алиасы** (в отличие от `WHERE`):\n\n```sql\nSELECT\n    AssetName,\n    DATEDIFF(DAY, GETDATE(), WarrantyDate) AS DaysToExpiry\nFROM Assets\nORDER BY DaysToExpiry DESC;\n```\n\nМожно также сортировать по порядковому номеру колонки (`ORDER BY 2 DESC`), но это **хрупкий стиль** — переставил колонки в `SELECT`, и сортировка сломалась незаметно. Не используй.\n\n### NULL в сортировке\n\nВ MS SQL Server `NULL` считается **меньше** любого значения. При `ASC` `NULL`'ы идут в начало, при `DESC` — в конец. Если нужно другое поведение, подмешай `CASE` или `ISNULL`:\n\n```sql\nORDER BY\n    CASE WHEN WarrantyDate IS NULL THEN 1 ELSE 0 END,\n    WarrantyDate ASC;\n```\n\n## TOP — первые N строк\n\nЕсли нужен не весь результат, а только первые несколько строк — используем `TOP`:\n\n```sql\nSELECT TOP 5 AssetName, WarrantyDate\nFROM Assets\nORDER BY WarrantyDate ASC;\n```\n\n**Важно**: без `ORDER BY` `TOP 5` вернёт **какие-то** 5 строк на усмотрение движка — не обязательно самые ранние. Всегда пиши `TOP` вместе с `ORDER BY`, если хочешь предсказуемый результат.\n\nПохожая форма — `TOP n PERCENT` — берёт первые N процентов:\n\n```sql\nSELECT TOP 10 PERCENT AssetName FROM Assets ORDER BY AssetName;\n```\n\nОкругление — в большую сторону: 10 % от 35 активов = 4 строки.\n\nЕщё есть `TOP ... WITH TIES` — если на границе несколько строк с одинаковым значением ключа сортировки, все они будут включены. Полезно, когда тебя интересует «все лидеры», а не строго N строк.\n\n> Это T-SQL-специфика. В MySQL аналог — `LIMIT n`, в PostgreSQL — `LIMIT n`. Мы говорим только про MSSQL, поэтому `TOP`.\n\n## Пагинация: OFFSET и FETCH\n\nЕсли надо показать **страницу 3 по 20 записей на странице**, `TOP` уже не подходит — он берёт только с начала. Для пагинации в MSSQL используется конструкция `OFFSET ... FETCH`:\n\n```sql\nSELECT AssetName, WarrantyDate\nFROM Assets\nORDER BY AssetName\nOFFSET 40 ROWS\nFETCH NEXT 20 ROWS ONLY;\n```\n\n- `OFFSET 40 ROWS` — пропустить первые 40 строк (т.е. первые 2 страницы по 20).\n- `FETCH NEXT 20 ROWS ONLY` — взять следующие 20.\n\nТребование: **`ORDER BY` обязателен** для `OFFSET/FETCH`. Без него запрос просто не скомпилируется — и это хорошо, иначе результат был бы неопределённым.\n\nФормула для страницы `p` при размере `size`: `OFFSET (p - 1) * size ROWS FETCH NEXT size ROWS ONLY`.\n\nЭта конструкция ещё раз подтверждает: порядок критичен для постраничного вывода. Если ты листаешь страницы и сортируешь по непостоянному ключу (например, по вычисленному DaysToExpiry, который меняется каждый день), строки могут «перепрыгивать» между страницами.\n\n## Что вынести из урока\n\n- Без `ORDER BY` порядок **не гарантирован** — никогда не полагайся на него в коде.\n- При сортировке по нескольким колонкам — они работают как многоуровневый tie-breaker.\n- `TOP n` в MSSQL, не `LIMIT`. Всегда с `ORDER BY`.\n- Страничный вывод — `ORDER BY … OFFSET … FETCH NEXT … ROWS ONLY`."
+  },
+  "practice": [
+    {
+      "id": "ordering-and-paging",
+      "title": "Сортировка и страницы",
+      "goal": "Попрактиковаться с `ORDER BY`, `TOP` и `OFFSET/FETCH` на данных `Session1`/`Session2`.",
+      "steps": [
+        {
+          "id": "sort-ascending",
+          "instruction": "Выбери из `Session1` все активы, отсортированные по `WarrantyDate` от ближайшего истечения к самому дальнему. Колонки: `AssetName`, `WarrantyDate`.",
+          "code": {
+            "language": "sql",
+            "full": "SELECT AssetName, WarrantyDate\nFROM Assets\nORDER BY WarrantyDate ASC;",
+            "explanation": "`ASC` — сортировка по возрастанию, то есть самые ранние даты (те, что истекут раньше) окажутся наверху. Это именно то, что обычно нужно менеджеру в Session 1 при фильтре по гарантии."
+          },
+          "hints": [
+            "`ASC` можно опустить — сортировка по возрастанию по умолчанию. Но явный `ASC` делает намерение однозначным."
+          ]
+        },
+        {
+          "id": "multi-column-sort",
+          "instruction": "В `Session2` выбери открытые EM-заявки (`EMEndDate IS NULL`). Отсортируй по `PriorityID` **по убыванию** (чем выше приоритет, тем больше ID), а при равных приоритетах — по `EMReportDate` от старых к новым. Это точная логика экрана Maintenance Manager.",
+          "code": {
+            "language": "sql",
+            "full": "SELECT ID, AssetID, PriorityID, EMReportDate\nFROM EmergencyMaintenances\nWHERE EMEndDate IS NULL\nORDER BY PriorityID DESC, EMReportDate ASC;",
+            "explanation": "Многоколоночный `ORDER BY` читается слева направо: сначала все строки упорядочиваются по первому ключу, внутри каждой группы равных — по второму. Именно так спецификация Session 2 описывает сортировку `Very High → High → General`, затем `oldest first`."
+          },
+          "hints": [
+            "Если PriorityID в БД именно `1=General, 2=High, 3=Very High` — `DESC` правильный порядок. Уточнить можно быстро: `SELECT * FROM Priorities;`."
+          ]
+        },
+        {
+          "id": "top-n",
+          "instruction": "Верни **5 самых недавно истекающих** активов из `Session1` (ближайшая WarrantyDate). Используй `TOP`.",
+          "code": {
+            "language": "sql",
+            "full": "SELECT TOP 5 AssetName, WarrantyDate\nFROM Assets\nWHERE WarrantyDate IS NOT NULL\nORDER BY WarrantyDate ASC;",
+            "explanation": "Без `ORDER BY` `TOP 5` выбрал бы «какие-то» 5 строк. С `ORDER BY WarrantyDate ASC` мы гарантированно получим именно 5 ближайших к истечению. `WHERE WarrantyDate IS NOT NULL` отсекает активы без гарантии, чтобы `NULL`'ы не попали в начало."
+          },
+          "hints": [
+            "Попробуй также `TOP 5 WITH TIES` — если на границе несколько активов с одинаковой датой, вернутся все такие."
+          ]
+        },
+        {
+          "id": "pagination",
+          "instruction": "Сделай запрос для **страницы 2** списка активов при размере страницы 3 (т.е. 3 записи со сдвигом на 3). Сортировка — по `AssetName` по алфавиту.",
+          "code": {
+            "language": "sql",
+            "full": "SELECT AssetName, AssetSN\nFROM Assets\nORDER BY AssetName ASC\nOFFSET 3 ROWS\nFETCH NEXT 3 ROWS ONLY;",
+            "explanation": "`OFFSET 3 ROWS` пропускает первую страницу (3 строки), `FETCH NEXT 3 ROWS ONLY` берёт следующие 3. Для страницы p и размера s: `OFFSET (p - 1) * s ROWS FETCH NEXT s ROWS ONLY`."
+          },
+          "hints": [
+            "`ORDER BY` обязателен для `OFFSET/FETCH` — без него запрос не скомпилируется.",
+            "На боевом фронтенде важно сортировать по **стабильному** ключу (ID), иначе при изменении данных записи будут мигрировать между страницами."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": [
+    "task-session-1-kmg-assets",
+    "task-session-2-emergency-maintenance",
+    "task-session-3-preventive-maintenance",
+    "task-session-4-inventory-warehouse",
+    "task-session-5-inventory-dashboard"
+  ],
+  "prerequisites": ["01-select-basics", "02-where-filtering"]
+}

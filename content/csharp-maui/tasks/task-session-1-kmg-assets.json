@@ -1,0 +1,190 @@
+{
+  "id": "task-session-1-kmg-assets",
+  "title": "Session 1 — Учёт активов KMG (Android)",
+  "summary": "Android-приложение на .NET 10 MAUI для централизованного учёта активов KazMunayGas: каталог, фильтры, добавление, редактирование, перемещение, история. Данные — через Web API к БД `Session1`.",
+  "overview": "**KazMunayGas (KMG)** расширяется и требует централизованную систему инвентаризации активов. Задача — построить **Android-приложение**, которое связывается с удалённой БД через **Web API** и позволяет менеджерам: каталогизировать активы, регистрировать новые, переносить их между департаментами/локациями и смотреть историю переносов. Весь UI строго по **KMG Style Guide**.\n\n**Ключевые ограничения**\n\n- Приложение не подключается к БД напрямую — только через Web API.\n- Имя БД — `Session1`; схему БД менять нельзя (ни таблиц, ни колонок).\n- Дата везде в формате ISO `YYYY-MM-DD`.\n- Кнопки `Delete` и `Cancel` — красные.\n- Модальное поведение: пока открыта форма/диалог, остальные формы заблокированы.",
+  "difficulty": "championship",
+  "relatedModule": "csharp-maui",
+  "relatedLessons": [],
+  "timeLimitMinutes": 300,
+  "sections": [
+    {
+      "id": "1",
+      "title": "Подготовка БД",
+      "body": "Создайте БД `Session1` на **MS SQL Server** (latest GA, работа через **SSMS**) и импортируйте скрипт `Session1-MsSQL.sql` из attachments. **Структуру БД менять нельзя**."
+    },
+    {
+      "id": "2",
+      "title": "Web API как слой доступа к данным",
+      "body": "Приложение взаимодействует с БД **только через Web API**. Прямое подключение из мобильного клиента запрещено. Спецификация API предоставляется заказчиком."
+    },
+    {
+      "id": "3",
+      "title": "Каталог активов (стартовый экран)",
+      "body": "Основной экран после запуска — список всех активов из БД. Каждая запись показывает: **Asset Name**, **Department Name**, **Asset SN**. Над списком — поле поиска и блок фильтров. Снизу — счётчик результатов."
+    },
+    {
+      "id": "4",
+      "title": "Поиск и фильтрация",
+      "body": "Поиск активируется при вводе **более 2 символов** и фильтрует по **Asset Name** и **Asset SN**. Над поиском — 4 контрола фильтрации:\n\n- **Department** — выпадающий список из БД\n- **Asset Group** — выпадающий список из БД\n- **Warranty Date Range** — два date picker'а (Start, End) по дате истечения гарантии\n\nФильтры применяются **сразу при изменении**, их можно комбинировать."
+    },
+    {
+      "id": "5",
+      "title": "Счётчик результатов",
+      "body": "В нижней части каталога — строка вида `3 assets from 35`: количество отфильтрованных записей и общее число активов в БД."
+    },
+    {
+      "id": "6",
+      "title": "Landscape-режим",
+      "body": "При повороте устройства в ландшафт каталог должен показывать **только список активов** — по одной строке на запись, с **Asset Name** и **SN**. Активные фильтры **сохраняются** при смене ориентации. Добавление и редактирование активов доступны **только в ландшафт-режиме**."
+    },
+    {
+      "id": "7",
+      "title": "Экран добавления актива",
+      "body": "Открывается по кнопке `+` (FAB) в каталоге. Поля формы:\n\n- Asset Name (text)\n- Department (dropdown из БД)\n- Location (dropdown — только локации выбранного департамента)\n- Asset Group (dropdown из БД)\n- Accountable Party / Employee (dropdown из БД)\n- Asset Description (multi-line)\n- Expired Warranty (date picker, опционально)\n- Asset Serial Number — автогенерация, readonly, формат `dd/gg/nnnn`\n- Photos — одна или несколько фотографий с камеры или из галереи"
+    },
+    {
+      "id": "8",
+      "title": "Алгоритм генерации SN",
+      "body": "Asset SN генерируется в формате `dd/gg/nnnn`:\n\n- `dd` — 2-значный Department ID (с ведущими нулями)\n- `gg` — 2-значный Asset Group ID (с ведущими нулями)\n- `nnnn` — 4-значный уникальный счётчик в пределах связки `Department + Asset Group` (с ведущими нулями)\n\nВ одном `Department + Asset Group` **не может быть двух активов с одинаковым `nnnn`**."
+    },
+    {
+      "id": "9",
+      "title": "Валидация при добавлении/редактировании",
+      "body": "Система **запрещает** сохранять два актива с одинаковым именем в одной локации. Все поля, кроме **Warranty Date** и **Photos**, обязательны перед submit'ом. Ошибки показываются осмысленными сообщениями."
+    },
+    {
+      "id": "10",
+      "title": "Экран редактирования актива",
+      "body": "Открывается по иконке карандаша у записи. **Location, Department, Asset Group — read-only**. Остальные поля редактируемы. `Submit` сохраняет изменения в БД; `Back` (сверху) и `Cancel` (снизу) возвращают в каталог без сохранения."
+    },
+    {
+      "id": "11",
+      "title": "Перенос актива (Move)",
+      "body": "Открывается по кнопке Move у записи. На экране:\n\n- Read-only: Asset Name, Current Department, Asset SN\n- `Destination Department` — dropdown **без текущего департамента**\n- `Destination Location` — dropdown с локациями выбранного destination-департамента\n- `New Asset SN` — автогенерируется по той же формуле `dd/gg/nnnn` для нового department/group\n- Если актив **ранее уже был** в этом destination-департаменте — используется **предыдущий SN**, новый не генерируется\n- `Submit` сохраняет запись в `AssetTransferLogs`; `Back` / `Cancel` возвращают в каталог"
+    },
+    {
+      "id": "12",
+      "title": "История переносов",
+      "body": "Открывается по кнопке History (≡) у записи. Экран:\n\n- Все прошлые переносы актива, **старые сверху**\n- Поля: Transfer Date, Old Department, Old Asset SN, New Department, New Asset SN\n- Если переносов за последние 12 месяцев не было — сообщение и возврат на главный экран\n- Кнопка `Back` внизу — возврат в каталог"
+    },
+    {
+      "id": "13",
+      "title": "Style Guide и UX-правила",
+      "body": "Применяются **ко всему приложению**.",
+      "children": [
+        {
+          "id": "13.1",
+          "title": "Валидация и сообщения об ошибках",
+          "body": "Каждый модуль выдаёт осмысленные сообщения при ошибках ввода и неуспехе операций."
+        },
+        {
+          "id": "13.2",
+          "title": "Скроллбары",
+          "body": "Скроллбары показываются, когда контент превышает видимую область, и скрываются — когда помещается."
+        },
+        {
+          "id": "13.3",
+          "title": "Формат дат",
+          "body": "Везде, где дата отображается, — ISO `YYYY-MM-DD`."
+        },
+        {
+          "id": "13.4",
+          "title": "Модальность",
+          "body": "Пока открыта форма или диалог — взаимодействие с остальными формами заблокировано."
+        },
+        {
+          "id": "13.5",
+          "title": "Красные деструктивные кнопки",
+          "body": "Кнопки `Delete` и `Cancel` — красного цвета, чтобы минимизировать случайные клики."
+        },
+        {
+          "id": "13.6",
+          "title": "Легенда цветового кодирования",
+          "body": "Если записи различаются по цвету (например, подсветка активов с открытыми заявками в будущих сессиях) — на экране обязательно показана визуальная легенда."
+        },
+        {
+          "id": "13.7",
+          "title": "Верстка и пробелы",
+          "body": "Грамотная типографика и использование whitespace критически важны для читаемости."
+        }
+      ]
+    }
+  ],
+  "attachments": [
+    {
+      "label": "Session1 — MS SQL Server dump",
+      "kind": "sql",
+      "source": { "format": "file", "path": "KazMunayGas/Session 1/Session1-MsSQL.sql" },
+      "description": "Скрипт создания БД `Session1` и seed-данных для MS SQL Server."
+    },
+    {
+      "label": "KMG Style Guide (RU)",
+      "kind": "pdf",
+      "source": { "format": "file", "path": "KazMunayGas/Guideline_RU/TS2025_TP09_Style_Guide_pre_RU.pdf" },
+      "description": "Фирменный стиль KMG: цвета, типографика, компоненты."
+    }
+  ],
+  "deliverables": [
+    {
+      "id": "android-app",
+      "label": "Работающее Android-приложение (.NET 10 MAUI)",
+      "kind": "app",
+      "spec": "APK / deploy на тестовое устройство. Все экраны (каталог, добавление, редактирование, перенос, история) функциональны. Все данные идут через Web API."
+    },
+    {
+      "id": "web-api",
+      "label": "Web API слой",
+      "kind": "app",
+      "spec": "ASP.NET Core Web API с эндпоинтами для всех операций (list/search/create/update/transfer/history). Клиент ходит только через него."
+    },
+    {
+      "id": "db-session1",
+      "label": "БД `Session1`",
+      "kind": "db-state",
+      "spec": "БД `Session1` развёрнута из импортированного скрипта, схема не модифицирована, seed-данные присутствуют."
+    }
+  ],
+  "assessmentCriteria": [
+    { "id": "db-api-connection", "text": "Приложение подключается к БД через Web API и корректно загружает данные.", "tag": "api" },
+    { "id": "catalog-startup", "text": "Каталог активов — стартовый экран, отображает все требуемые поля (Name, Department, SN).", "tag": "ui" },
+    { "id": "search-by-name-sn", "text": "Поиск фильтрует по Asset Name и SN, срабатывает после 2+ символов.", "tag": "поиск" },
+    { "id": "filters-four-controls", "text": "Все 4 фильтра (Department, Asset Group, Warranty Start, Warranty End) работают корректно.", "tag": "фильтры" },
+    { "id": "filters-immediate", "text": "Фильтры применяются сразу при изменении значения.", "tag": "фильтры" },
+    { "id": "result-count", "text": "Счётчик результатов отображается в нижней части каталога корректно.", "tag": "ui" },
+    { "id": "landscape-one-line", "text": "В ландшафт-режиме список сжат в одну строку на запись; фильтры сохранены.", "tag": "ориентация" },
+    { "id": "add-form-fields", "text": "Форма добавления содержит все требуемые поля и корректно сохраняет в БД.", "tag": "add" },
+    { "id": "location-by-department", "text": "Dropdown `Location` фильтруется по выбранному Department.", "tag": "add" },
+    { "id": "duplicate-name-prevented", "text": "Система запрещает сохранить два актива с одинаковым именем в одной локации.", "tag": "валидация" },
+    { "id": "sn-format", "text": "Asset SN автогенерируется в формате `dd/gg/nnnn` с zero-padding.", "tag": "sn" },
+    { "id": "photos-capture-upload", "text": "Фотографии можно снять камерой или выбрать из галереи.", "tag": "add" },
+    { "id": "edit-readonly-fields", "text": "На экране редактирования Location, Department, Asset Group — read-only.", "tag": "edit" },
+    { "id": "transfer-readonly-current", "text": "Экран переноса показывает текущие Asset Name, Department, SN как read-only.", "tag": "transfer" },
+    { "id": "transfer-excludes-current-dept", "text": "Destination Department dropdown исключает текущий департамент актива.", "tag": "transfer" },
+    { "id": "transfer-new-sn-generated", "text": "New Asset SN генерируется корректно после выбора destination department.", "tag": "transfer" },
+    { "id": "transfer-sn-reuse", "text": "Если актив уже был в destination-департаменте, используется его предыдущий SN.", "tag": "transfer" },
+    { "id": "transfer-log-saved", "text": "Запись о переносе сохраняется в `AssetTransferLogs` корректно.", "tag": "transfer" },
+    { "id": "history-sorted-oldest-first", "text": "История переносов отображает все требуемые поля, отсортирована от старого к новому.", "tag": "history" },
+    { "id": "history-no-transfers-msg", "text": "При отсутствии переносов за последние 12 месяцев показывается сообщение и возврат на главный экран.", "tag": "history" },
+    { "id": "destructive-buttons-red", "text": "Кнопки `Delete` и `Cancel` — красного цвета.", "tag": "ux" },
+    { "id": "modal-forms", "text": "Пока открыта форма или диалог, другие формы заблокированы (модальное поведение).", "tag": "ux" },
+    { "id": "style-guide-applied", "text": "KMG Style Guide применён во всём приложении консистентно.", "tag": "стиль" },
+    { "id": "scrollbars-correct", "text": "Скроллбары используются корректно (показаны при переполнении, скрыты иначе).", "tag": "ux" },
+    { "id": "date-format-iso", "text": "Все отображаемые даты — в формате `YYYY-MM-DD`.", "tag": "формат" },
+    { "id": "color-legend", "text": "При цветовой дифференциации записей на экране присутствует легенда.", "tag": "ux" },
+    { "id": "all-functional-by-end", "text": "Все требуемые фичи полностью функциональны к концу сессии.", "tag": "полнота" }
+  ],
+  "sources": [
+    {
+      "label": "WSC2025 TP09 S1 — основной брифинг (RU)",
+      "kind": "pdf",
+      "source": { "format": "file", "path": "KazMunayGas/Session 1/WSC2025_TP09_S1_RU.pdf" }
+    },
+    {
+      "label": "Сессия 1 — дополнительный документ (RU)",
+      "kind": "pdf",
+      "source": { "format": "file", "path": "KazMunayGas/Session 1/Сессия 1..pdf" }
+    }
+  ],
+  "notes": "WorldSkills championship-level задача. Scope покрывает Android UI (MAUI), Web API (ASP.NET Core) и работу с БД. Использовать .NET 10 LTS. Схему БД не модифицировать."
+}

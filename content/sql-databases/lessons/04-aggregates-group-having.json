@@ -1,0 +1,76 @@
+{
+  "id": "04-aggregates-group-having",
+  "moduleId": "sql-databases",
+  "title": "Агрегаты, GROUP BY и HAVING",
+  "summary": "Подсчёт и свёртка строк: `COUNT`, `SUM`, `AVG`, `MIN`, `MAX`. Группировка через `GROUP BY` по одной и нескольким колонкам. Фильтрация **после** агрегации через `HAVING`. Особенности `NULL` в агрегатах. T-SQL.",
+  "estimatedMinutes": 45,
+  "theory": {
+    "kind": "inline",
+    "value": "# Агрегация: свести много строк в одно число\n\nДо сих пор каждая строка исходной таблицы превращалась в одну строку результата. Но часто нужен не список, а **сводка**: сколько всего активов, средняя стоимость запчастей по месяцам, максимальная дата заявки в каждом департаменте. Для этого в SQL есть **агрегатные функции** и клауза `GROUP BY`.\n\n## Агрегатные функции\n\n| Функция | Что делает |\n|---|---|\n| `COUNT(*)` | количество строк |\n| `COUNT(col)` | количество **не-NULL** значений в колонке |\n| `COUNT(DISTINCT col)` | количество уникальных не-NULL значений |\n| `SUM(col)` | сумма числовых значений |\n| `AVG(col)` | среднее |\n| `MIN(col)` / `MAX(col)` | минимум / максимум |\n\nПростейший пример — общее число активов:\n\n```sql\nSELECT COUNT(*) AS TotalAssets\nFROM Assets;\n```\n\nРезультат — одна строка, одна колонка. Без `GROUP BY` агрегат работает **на всю таблицу** (с учётом `WHERE`, если он есть).\n\n### NULL и агрегаты\n\nВсе агрегаты, кроме `COUNT(*)`, **игнорируют `NULL`**. Это кажется мелочью, но приводит к сюрпризам:\n\n```sql\nSELECT\n    COUNT(*)           AS Rows,          -- считает все\n    COUNT(WarrantyDate) AS WithWarranty  -- считает только не-NULL\nFROM Assets;\n```\n\nЕсли в 10 активах из 35 гарантия не указана (`NULL`), `COUNT(*)` вернёт 35, а `COUNT(WarrantyDate)` — только 25. Это часто удобно, но именно это же поведение — источник багов, когда разработчик думал, что `AVG(col)` усредняет по **всем** строкам, а оно усредняет только по заполненным.\n\n## GROUP BY\n\nКогда нужно посчитать агрегат **в разрезе** какой-то колонки — например, «количество активов в каждом департаменте», — используется `GROUP BY`:\n\n```sql\nSELECT\n    DepartmentLocationID,\n    COUNT(*) AS AssetsCount\nFROM Assets\nGROUP BY DepartmentLocationID;\n```\n\nSQL Server сначала соберёт все строки с одинаковым `DepartmentLocationID` в «пачку», затем применит `COUNT(*)` отдельно к каждой пачке. В результате получится одна строка на уникальное значение группировки.\n\nГруппировать можно сразу по нескольким колонкам — тогда «пачка» определяется комбинацией значений:\n\n```sql\nGROUP BY DepartmentLocationID, AssetGroupID\n```\n\nТут получится одна строка на каждую уникальную пару (department, group).\n\n### Жёсткое правило `SELECT` с `GROUP BY`\n\nКогда в запросе есть `GROUP BY`, в списке `SELECT` разрешены только:\n\n1. Колонки, по которым идёт группировка, и\n2. Агрегатные функции.\n\nПопытка написать что-то вроде `SELECT DepartmentLocationID, AssetName, COUNT(*) FROM Assets GROUP BY DepartmentLocationID` приведёт к ошибке — `AssetName` не является частью ключа группировки, и сервер не знает, какое значение показать в строке группы (у разных активов оно разное).\n\n## HAVING — фильтр **после** агрегации\n\n`WHERE` фильтрует **до** группировки — на уровне отдельных строк. `HAVING` фильтрует **после** — на уровне уже сгруппированных результатов:\n\n```sql\nSELECT\n    DepartmentLocationID,\n    COUNT(*) AS AssetsCount\nFROM Assets\nGROUP BY DepartmentLocationID\nHAVING COUNT(*) > 5;\n```\n\nЭтот запрос вернёт только те департаменты, в которых **больше пяти** активов. В `HAVING` можно использовать те же агрегатные функции, что и в `SELECT`.\n\n**Разница `WHERE` vs `HAVING`** в одной фразе:\n\n- `WHERE` отбрасывает строки **до** того, как их посчитали.\n- `HAVING` отбрасывает группы **после** того, как их посчитали.\n\nЕсли тебе нужно отсечь активы с истёкшей гарантией **до** группировки — это `WHERE WarrantyDate > GETDATE()`. Если нужно показать **только департаменты, у которых средний срок гарантии больше года** — это `HAVING AVG(DATEDIFF(DAY, GETDATE(), WarrantyDate)) > 365`.\n\n## Порядок клауз (снова)\n\nТеперь у нас полный набор:\n\n```\nFROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY\n```\n\nЗапомни этот порядок — он объясняет, что где можно использовать, а что нельзя. В `WHERE` нельзя агрегаты (ещё нет группировок); в `HAVING` — можно. В `ORDER BY` можно использовать алиасы из `SELECT`; в `WHERE` — нельзя.\n\n## Сценарии из реальных задач\n\n- Session 1: «3 assets from 35» в нижней части каталога — это два `COUNT(*)`: по отфильтрованному набору и по всему.\n- Session 2: `Number of EMs` per asset в экране Accountable Party — это `COUNT(*) GROUP BY AssetID` в таблице `EmergencyMaintenances`.\n- Session 5: EM Spending by Department per month — это `SUM(Amount * UnitPrice) GROUP BY DepartmentID, YEAR+MONTH`.\n\nАгрегаты — основной инструмент аналитики. В Session 6 то же самое делается уже в pandas, но концептуально всё переносится один к одному: `groupby` + `sum` в Python = `GROUP BY` + `SUM` в SQL."
+  },
+  "practice": [
+    {
+      "id": "aggregate-and-group",
+      "title": "Свёртка и группировка",
+      "goal": "Посчитать нужные метрики через агрегаты и группировку на `Session1` и `Session2`.",
+      "steps": [
+        {
+          "id": "total-count",
+          "instruction": "В `Session1` посчитай общее количество активов и отдельно — количество активов с указанной датой гарантии. Сравни значения.",
+          "code": {
+            "language": "sql",
+            "full": "SELECT\n    COUNT(*)           AS TotalAssets,\n    COUNT(WarrantyDate) AS WithWarranty\nFROM Assets;",
+            "explanation": "`COUNT(*)` считает все строки, `COUNT(WarrantyDate)` — только строки, где `WarrantyDate IS NOT NULL`. Разность этих чисел = количество активов без гарантии. Пример «3 assets from 35» из Session 1 — это два аналогичных `COUNT(*)`, один по отфильтрованному набору, другой по всей таблице."
+          },
+          "hints": [
+            "Можно получить и процент: `CAST(COUNT(WarrantyDate) AS FLOAT) / COUNT(*) * 100`."
+          ]
+        },
+        {
+          "id": "group-by-one",
+          "instruction": "Посчитай в `Session1` количество активов **в разрезе** `AssetGroupID`. Отсортируй от большего к меньшему.",
+          "code": {
+            "language": "sql",
+            "full": "SELECT\n    AssetGroupID,\n    COUNT(*) AS AssetsCount\nFROM Assets\nGROUP BY AssetGroupID\nORDER BY AssetsCount DESC;",
+            "explanation": "`GROUP BY AssetGroupID` собирает активы в группы по значению этой колонки, `COUNT(*)` считает строки в каждой группе. `ORDER BY AssetsCount DESC` ставит самые многочисленные группы наверх. Сортировать по алиасу `AssetsCount` можно, потому что `ORDER BY` исполняется после `SELECT`."
+          },
+          "hints": [
+            "Если нужны имена групп, а не ID — нужен JOIN к `AssetGroups`. Разберём в уроке 5."
+          ]
+        },
+        {
+          "id": "group-by-multiple",
+          "instruction": "В `Session2` для каждого актива посчитай общее число EM-заявок (открытых + закрытых) и дату самой последней закрытой. Колонки: `AssetID`, `TotalEMs`, `LastClosedEM`. Это ровно та статистика, которая нужна в экране Accountable Party (Session 2).",
+          "code": {
+            "language": "sql",
+            "full": "SELECT\n    AssetID,\n    COUNT(*)        AS TotalEMs,\n    MAX(EMEndDate)  AS LastClosedEM\nFROM EmergencyMaintenances\nGROUP BY AssetID;",
+            "explanation": "`COUNT(*)` считает все заявки актива (открытые + закрытые). `MAX(EMEndDate)` среди них берёт последнюю дату закрытия; открытые заявки имеют `EMEndDate = NULL` и игнорируются `MAX`, поэтому он вернёт дату именно последней закрытой. Если у актива все заявки открыты, `MAX` вернёт `NULL` — в UI как раз показывается `--`."
+          },
+          "hints": [
+            "Альтернатива для `LastClosedEM`: `MAX(CASE WHEN EMEndDate IS NOT NULL THEN EMEndDate END)` — делает то же самое явно."
+          ]
+        },
+        {
+          "id": "having-filter",
+          "instruction": "Верни `AssetID` только тех активов, у которых больше **одной** закрытой заявки. То есть: сначала сгруппировать по `AssetID`, посчитать закрытые заявки, затем оставить только группы с более чем одной закрытой.",
+          "code": {
+            "language": "sql",
+            "full": "SELECT\n    AssetID,\n    COUNT(*) AS ClosedEMs\nFROM EmergencyMaintenances\nWHERE EMEndDate IS NOT NULL\nGROUP BY AssetID\nHAVING COUNT(*) > 1;",
+            "explanation": "`WHERE EMEndDate IS NOT NULL` отбрасывает открытые заявки **до** группировки. После `GROUP BY` `COUNT(*)` считает, сколько закрытых заявок у каждого актива. `HAVING COUNT(*) > 1` оставляет только группы с более чем одной заявкой. Менять `WHERE` и `HAVING` местами нельзя: `WHERE` работает построчно, `HAVING` — над агрегатами."
+          },
+          "hints": [
+            "Если бы мы хотели считать **все** заявки, а отфильтровать только по закрытым (другое требование!) — это было бы `HAVING SUM(CASE WHEN EMEndDate IS NOT NULL THEN 1 ELSE 0 END) > 1`."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": [
+    "task-session-1-kmg-assets",
+    "task-session-2-emergency-maintenance",
+    "task-session-3-preventive-maintenance",
+    "task-session-4-inventory-warehouse",
+    "task-session-5-inventory-dashboard"
+  ],
+  "prerequisites": ["01-select-basics", "02-where-filtering"]
+}

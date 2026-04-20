@@ -1,0 +1,35 @@
+{
+  "id": "01-pandas-intro",
+  "moduleId": "python-data-analysis",
+  "title": "Знакомство с pandas",
+  "summary": "Загрузка CSV в DataFrame, первичный осмотр, выбор столбцов. Python 3.13+, pandas последней стабильной версии.",
+  "estimatedMinutes": 20,
+  "theory": {
+    "kind": "inline",
+    "value": "# pandas\n\npandas — стандартная библиотека Python для табличных данных. Два ключевых типа: `Series` (один столбец) и `DataFrame` (много столбцов).\n\n```python\nimport pandas as pd\ndf = pd.read_csv('sales.csv')\n```\n\nПосле загрузки всегда делайте первичный осмотр: `df.head()`, `df.info()`, `df.describe()`."
+  },
+  "practice": [
+    {
+      "id": "load-and-inspect",
+      "title": "Загрузка и осмотр",
+      "goal": "Загрузить CSV и ответить на базовые вопросы о его размере.",
+      "steps": [
+        {
+          "id": "load-and-shape",
+          "instruction": "Загрузите `sales.csv` в `df` и напечатайте количество строк и столбцов.",
+          "code": {
+            "language": "python",
+            "full": "import pandas as pd\n\ndf = pd.read_csv('sales.csv')\nprint(df.shape)          # (строки, столбцы)\nprint(df.columns.tolist())",
+            "simplified": "df = pd.read_csv('sales.csv')\nprint(df.shape)",
+            "explanation": "`df.shape` — кортеж `(строки, столбцы)`. `df.columns.tolist()` превращает Index столбцов в обычный Python-список."
+          },
+          "hints": [
+            "Убедитесь, что CSV лежит в рабочей директории, либо укажите абсолютный путь.",
+            "Если разделитель `;`, передайте `sep=';'`."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": ["task-001-sales-summary"]
+}

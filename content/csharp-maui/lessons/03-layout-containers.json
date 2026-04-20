@@ -1,0 +1,66 @@
+{
+  "id": "03-layout-containers",
+  "moduleId": "csharp-maui",
+  "title": "Компоновка: Grid, StackLayout, FlexLayout",
+  "summary": "Контейнеры для раскладки UI: `VerticalStackLayout` и `HorizontalStackLayout`, `Grid` с колонками и строками (`*`, `Auto`, fixed), `FlexLayout` для адаптивных обёрток. `Padding` vs `Margin`, `HorizontalOptions`/`VerticalOptions`. .NET 10 MAUI.",
+  "estimatedMinutes": 50,
+  "theory": {
+    "kind": "inline",
+    "value": "# Компоновка\n\nUI — это всегда дерево. Корень обычно `ContentPage`, внутри — **контейнер**, который диктует, как располагаются его дети. В MAUI есть несколько базовых контейнеров, и выбор правильного — половина успеха вёрстки.\n\n## StackLayout'ы — один за другим\n\n**`VerticalStackLayout`** кладёт детей сверху вниз, **`HorizontalStackLayout`** — слева направо. Это самые частые контейнеры для форм и тулбаров.\n\n```xml\n<VerticalStackLayout Padding=\"16\" Spacing=\"8\">\n    <Label Text=\"Имя актива\" />\n    <Entry Placeholder=\"AssetName\" />\n    <Label Text=\"Департамент\" />\n    <Picker Title=\"Department\" />\n    <Button Text=\"Сохранить\" />\n</VerticalStackLayout>\n```\n\n- `Padding` — отступ **внутри** контейнера (вокруг группы детей).\n- `Spacing` — расстояние **между** детьми.\n\n> В старой Xamarin.Forms был просто `<StackLayout Orientation=\"Vertical\">`, но он тяжелее. В MAUI лучше сразу использовать specialized `VerticalStackLayout` / `HorizontalStackLayout` — они оптимизированы.\n\n## Grid — сетка колонок и строк\n\nКогда нужно разместить что-то в табличном виде (две колонки, шапка + контент, форма 2 на N) — это `Grid`.\n\n```xml\n<Grid ColumnDefinitions=\"Auto,*\"\n      RowDefinitions=\"Auto,Auto,*\"\n      Padding=\"16\" ColumnSpacing=\"8\" RowSpacing=\"8\">\n    <Label Text=\"Имя:\"      Grid.Row=\"0\" Grid.Column=\"0\" />\n    <Entry                  Grid.Row=\"0\" Grid.Column=\"1\" />\n    <Label Text=\"Статус:\"    Grid.Row=\"1\" Grid.Column=\"0\" />\n    <Label Text=\"Открыт\"    Grid.Row=\"1\" Grid.Column=\"1\" />\n    <CollectionView          Grid.Row=\"2\" Grid.ColumnSpan=\"2\" />\n</Grid>\n```\n\n### Единицы размера\n\n- **`Auto`** — столбец/строка растягивается ровно под содержимое.\n- **`*`** — «звёздочка» — занимает оставшееся пространство. Несколько `*` делят остаток пропорционально: `ColumnDefinitions=\"*, 2*\"` означает «первая колонка 1 часть, вторая — 2 части» (т.е. 33 % / 67 %).\n- **Fixed** (`ColumnDefinitions=\"120,*\"`) — точное число пикселей.\n\nКомбинация `Auto,*` — классика: узкая колонка-ярлычок + широкая колонка-поле.\n\n### Размещение в ячейке\n\n- `Grid.Row=\"1\"`, `Grid.Column=\"2\"` — в какую ячейку положить.\n- `Grid.RowSpan=\"2\"`, `Grid.ColumnSpan=\"3\"` — растянуть на несколько ячеек.\n- Без этих атрибутов элемент попадает в `(0,0)`.\n\n## FlexLayout — адаптивные обёртки\n\n`FlexLayout` похож на CSS Flexbox. Полезен, когда тебе нужно **обернуть** набор элементов в несколько строк по мере нехватки места, — например, ряд чипов-тегов.\n\n```xml\n<FlexLayout Wrap=\"Wrap\" JustifyContent=\"Start\" AlignItems=\"Center\"\n            Padding=\"16\" FlexLayout.Direction=\"Row\">\n    <Button Text=\"Hydraulic\" />\n    <Button Text=\"Electrical\" />\n    <Button Text=\"Mechanical\" />\n    <Button Text=\"Pneumatic\" />\n</FlexLayout>\n```\n\nПри сужении ширины кнопки автоматически переносятся на следующую строку. В обычной вёрстке KMG-приложений `FlexLayout` нужен редко; знай, что он есть.\n\n## Padding vs Margin\n\nОба задают отступы, но по-разному:\n\n- **`Padding`** — внутренний отступ. Задаётся на контейнере, «толкает» его содержимое внутрь.\n- **`Margin`** — внешний отступ. Задаётся на дочернем элементе, «толкает» его от краёв контейнера или соседей.\n\n```xml\n<!-- Entry будет иметь 16px отступ со всех сторон внутри StackLayout -->\n<VerticalStackLayout>\n    <Entry Margin=\"16\" />\n</VerticalStackLayout>\n\n<!-- То же самое через Padding на контейнере -->\n<VerticalStackLayout Padding=\"16\">\n    <Entry />\n</VerticalStackLayout>\n```\n\nОбе нотации принимают 1, 2 или 4 значения: `\"16\"` (все четыре стороны), `\"16,8\"` (гориз., верт.), `\"16,8,16,24\"` (left, top, right, bottom).\n\n## HorizontalOptions / VerticalOptions\n\nНа каждом дочернем элементе есть свойства выравнивания:\n\n- `Start`, `End`, `Center` — прижать к краю / центру, элемент берёт минимальную нужную ширину/высоту.\n- `Fill` — растянуться на всё доступное пространство (по умолчанию).\n\n```xml\n<Button Text=\"OK\" HorizontalOptions=\"End\" />  <!-- прижать справа -->\n<Label Text=\"Заголовок\" HorizontalOptions=\"Center\" FontSize=\"32\" />\n```\n\nВ `Grid` это работает внутри ячейки; в `VerticalStackLayout` — по горизонтали (вертикальное выравнивание определяется порядком детей).\n\n## Какой контейнер выбрать\n\n- **Список полей формы** — `VerticalStackLayout`.\n- **Тулбар / строка кнопок** — `HorizontalStackLayout`.\n- **Шапка + контент, или форма «ярлык / поле»** — `Grid`.\n- **Теги / чипы, адаптивная обёртка** — `FlexLayout`.\n- **Список записей переменной длины** — это уже `CollectionView` (урок 7), а не контейнер.\n\n## Что запомнить\n\n- `VerticalStackLayout` / `HorizontalStackLayout` — просто и быстро; `Padding`, `Spacing`.\n- `Grid` с `ColumnDefinitions=\"Auto,*\"` и `RowDefinitions=\"Auto,Auto,*\"` — 80 % любых форм.\n- `*` — «звёздочка», `Auto` — по содержимому. Fixed — избегай, кроме строго известных размеров.\n- `Padding` — внутри, `Margin` — снаружи. `HorizontalOptions`/`VerticalOptions` — выравнивание в ячейке."
+  },
+  "practice": [
+    {
+      "id": "layouts-practice",
+      "title": "Собрать форму на Grid",
+      "goal": "Сделать экран «Add Asset» как в Session 1, используя разные контейнеры.",
+      "steps": [
+        {
+          "id": "vertical-stack-form",
+          "instruction": "Собери форму добавления актива на `VerticalStackLayout`: ярлык + Entry для имени, Picker для департамента, Button для сохранения. Padding 16, Spacing 12.",
+          "code": {
+            "language": "xaml",
+            "full": "<VerticalStackLayout Padding=\"16\" Spacing=\"12\">\n    <Label Text=\"Asset Name\" FontSize=\"14\" TextColor=\"Gray\" />\n    <Entry Placeholder=\"Например, Hydraulic Pump\" />\n    <Label Text=\"Department\" FontSize=\"14\" TextColor=\"Gray\" />\n    <Picker Title=\"Выберите департамент\" />\n    <Button Text=\"Сохранить\" HorizontalOptions=\"End\" />\n</VerticalStackLayout>",
+            "explanation": "Простая линейная форма. Кнопка прижата вправо через `HorizontalOptions=\"End\"` — это соответствует обычному UX-паттерну: деструктивные/подтверждающие кнопки справа."
+          },
+          "hints": [
+            "Такой подход работает для простых форм. Для сложных (две колонки, выровненные поля) перейдёт на Grid в следующем шаге."
+          ]
+        },
+        {
+          "id": "grid-two-columns",
+          "instruction": "Переделай ту же форму на `Grid` с двумя колонками: узкая `Auto` для ярлыков, широкая `*` для полей. Каждое поле — одна строка.",
+          "code": {
+            "language": "xaml",
+            "full": "<Grid ColumnDefinitions=\"Auto,*\"\n      RowDefinitions=\"Auto,Auto,Auto\"\n      Padding=\"16\"\n      ColumnSpacing=\"12\" RowSpacing=\"12\">\n\n    <Label Text=\"Asset Name:\"  Grid.Row=\"0\" Grid.Column=\"0\" VerticalOptions=\"Center\" />\n    <Entry Placeholder=\"Hydraulic Pump\" Grid.Row=\"0\" Grid.Column=\"1\" />\n\n    <Label Text=\"Department:\"  Grid.Row=\"1\" Grid.Column=\"0\" VerticalOptions=\"Center\" />\n    <Picker Title=\"Выберите\"   Grid.Row=\"1\" Grid.Column=\"1\" />\n\n    <Button Text=\"Сохранить\"\n            Grid.Row=\"2\" Grid.Column=\"1\"\n            HorizontalOptions=\"End\" />\n</Grid>",
+            "explanation": "Теперь ярлыки выровнены в колонку, поля — в колонку. Кнопка занимает только правую колонку и прижимается вправо. `VerticalOptions=\"Center\"` на ярлыках центрирует их по высоте поля ввода."
+          },
+          "hints": [
+            "Быстрый трюк: `RowDefinitions=\"*,*,*\"` (все равные) — и строки растянутся на всю высоту. Обычно для форм хочется `Auto` — по содержимому.",
+            "Если полей много, имеет смысл вынести `Grid.Row` в макрос/StyleResource или просто смириться — XAML многословен."
+          ]
+        },
+        {
+          "id": "header-grid-content",
+          "instruction": "Собери каркас экрана каталога из Session 1: шапка-тулбар (фильтры) и растягиваемая область под список. Используй `Grid` с `RowDefinitions=\"Auto,*\"` — шапка по содержимому, контент на весь остаток.",
+          "code": {
+            "language": "xaml",
+            "full": "<Grid RowDefinitions=\"Auto,*\" Padding=\"0\">\n\n    <!-- Шапка с фильтрами -->\n    <VerticalStackLayout Grid.Row=\"0\" Padding=\"16\" Spacing=\"8\"\n                         BackgroundColor=\"#F5F5F5\">\n        <Entry Placeholder=\"Поиск (2+ символа)\" />\n        <HorizontalStackLayout Spacing=\"8\">\n            <Picker Title=\"Department\" HorizontalOptions=\"FillAndExpand\" />\n            <Picker Title=\"Asset Group\" HorizontalOptions=\"FillAndExpand\" />\n        </HorizontalStackLayout>\n    </VerticalStackLayout>\n\n    <!-- Контент -->\n    <CollectionView Grid.Row=\"1\" />\n</Grid>",
+            "explanation": "Классика: шапка занимает ровно столько, сколько её детям нужно (`Auto`), а `CollectionView` заполняет всё оставшееся пространство (`*`). Именно так устроены экраны каталогов в Sessions 1 и 3."
+          },
+          "hints": [
+            "`HorizontalOptions=\"FillAndExpand\"` на двух `Picker`'ах даст им поровну ширины тулбара.",
+            "В ландшафтном режиме Session 1 требует убирать шапку и показывать только список — этого легко добиться через `Grid.Row=\"Auto\"` и триггер по `OrientationStateTrigger` (урок 15)."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": [
+    "task-session-1-kmg-assets",
+    "task-session-2-emergency-maintenance",
+    "task-session-3-preventive-maintenance",
+    "task-session-4-inventory-warehouse",
+    "task-session-5-inventory-dashboard"
+  ],
+  "prerequisites": ["01-intro-to-maui", "02-xaml-fundamentals"]
+}

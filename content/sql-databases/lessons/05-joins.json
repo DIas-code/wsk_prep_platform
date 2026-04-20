@@ -1,0 +1,85 @@
+{
+  "id": "05-joins",
+  "moduleId": "sql-databases",
+  "title": "JOIN'ы: соединение таблиц",
+  "summary": "Как собрать данные из нескольких таблиц в один результат: `INNER JOIN`, `LEFT JOIN`, `RIGHT JOIN`, `FULL JOIN`. Алиасы таблиц, ключи соединения, условие в `ON` против фильтра в `WHERE`, мульти-JOIN цепочки и типичные ловушки (дубликаты, `NULL` в outer). T-SQL.",
+  "estimatedMinutes": 60,
+  "theory": {
+    "kind": "inline",
+    "value": "# JOIN — соединение таблиц\n\nРеляционная БД умышленно **раскидывает** данные по нескольким таблицам. В `Session1`, например, у актива хранится только `DepartmentLocationID` — числовой ID, а название департамента лежит в отдельной таблице `Departments`. Это хорошо: если департамент переименовывают, мы меняем одну строку в `Departments`, а все активы автоматически «видят» новое имя. Но при чтении данных нам надо их **соединить обратно** — этим занимается `JOIN`.\n\n## INNER JOIN\n\nСамый частый тип. `INNER JOIN` возвращает строки, **которые есть в обеих таблицах** по заданному ключу.\n\n```sql\nSELECT\n    a.AssetName,\n    g.Name AS GroupName\nFROM Assets AS a\nINNER JOIN AssetGroups AS g\n    ON a.AssetGroupID = g.ID;\n```\n\nРазбор:\n\n- `Assets AS a` — даём таблице `Assets` короткий алиас `a`. Без алиасов в больших запросах нечитаемо.\n- `INNER JOIN AssetGroups AS g` — берём `AssetGroups` и соединяем.\n- `ON a.AssetGroupID = g.ID` — ключ соединения: строки связываются там, где `AssetGroupID` актива совпадает с `ID` группы.\n\nЕсли у какого-то актива `AssetGroupID` указывает на несуществующую группу (такого обычно не бывает, но если в схеме нет FK — теоретически возможно), он **не попадёт в результат** `INNER JOIN`. Именно поэтому join называется «inner» — показывает только «пересечение».\n\nСлово `INNER` можно опустить — просто `JOIN` без префикса по умолчанию inner. Но писать его явно полезно: следующий разработчик мгновенно видит намерение.\n\n## LEFT JOIN\n\n`LEFT JOIN` (или полное `LEFT OUTER JOIN`) возвращает **все строки левой таблицы**, и подшивает к ним соответствующие строки правой — а если соответствия нет, в правых колонках будет `NULL`.\n\n```sql\nSELECT\n    a.AssetName,\n    em.EMReportDate\nFROM Assets AS a\nLEFT JOIN EmergencyMaintenances AS em\n    ON em.AssetID = a.ID;\n```\n\nЧто получится:\n\n- Активы с заявками — строка на каждую заявку.\n- Активы **без заявок** — одна строка, где `em.EMReportDate IS NULL`.\n\nТакой join идеален для ответа на вопрос «все активы, даже те, у которых пока нет истории».\n\n## RIGHT JOIN и FULL JOIN\n\n`RIGHT JOIN` — зеркало `LEFT JOIN`: берёт все строки **правой** таблицы. На практике используется редко, потому что ту же логику всегда можно выразить через `LEFT JOIN`, просто поменяв таблицы местами — и читателю это понятнее.\n\n`FULL JOIN` (FULL OUTER JOIN) возвращает **всё из обеих** сторон; несовпадения с одной стороны получают `NULL` с другой. Пригождается для сверок: «какие записи есть здесь, но нет там, и наоборот».\n\n## ON vs WHERE в outer-join\n\nОдна из самых коварных ошибок. Условие можно ставить и в `ON`, и в `WHERE`, но для `LEFT/RIGHT/FULL JOIN` они работают **по-разному**.\n\n```sql\n-- Вариант А: условие в ON\nSELECT a.AssetName, em.EMReportDate\nFROM Assets AS a\nLEFT JOIN EmergencyMaintenances AS em\n    ON em.AssetID = a.ID\n   AND em.EMEndDate IS NULL;\n\n-- Вариант Б: условие в WHERE\nSELECT a.AssetName, em.EMReportDate\nFROM Assets AS a\nLEFT JOIN EmergencyMaintenances AS em\n    ON em.AssetID = a.ID\nWHERE em.EMEndDate IS NULL;\n```\n\nВыглядят почти одинаково, но:\n\n- **Вариант А** вернёт **все активы**; если у актива нет открытых заявок, `em.*` будут `NULL`. Условие `em.EMEndDate IS NULL` применяется при подшивке правой таблицы.\n- **Вариант Б** вернёт **только те активы, у которых есть открытая заявка** — потому что `WHERE em.EMEndDate IS NULL` отрежет и строки, где нет правой части вообще (там тоже NULL). `LEFT JOIN` фактически превратился в `INNER JOIN`.\n\nПравило: **условия на правую таблицу outer-join'а ставь в `ON`, а не в `WHERE`** — если хочешь сохранить строки без совпадений с левой стороны.\n\n## Цепочки JOIN\n\nJoin'ов может быть много — каждый добавляет ещё одну таблицу к результату. В `Session1` получить «актив → департамент → локация» требует двух join'ов (через промежуточную таблицу `DepartmentLocations`):\n\n```sql\nSELECT\n    a.AssetName,\n    d.Name  AS DepartmentName,\n    l.Name  AS LocationName\nFROM Assets AS a\nINNER JOIN DepartmentLocations AS dl ON dl.ID = a.DepartmentLocationID\nINNER JOIN Departments         AS d  ON d.ID  = dl.DepartmentID\nINNER JOIN Locations           AS l  ON l.ID  = dl.LocationID;\n```\n\nЧитать снизу вверх: `Assets` связан с `DepartmentLocations` по `DepartmentLocationID`, та — с `Departments` и `Locations` через свои FK.\n\n## Типичные ловушки\n\n1. **Дубликаты из-за «один-ко-многим»**. Если один актив имеет 5 заявок, `INNER JOIN` по `AssetID` вернёт 5 строк на актив. Не удивляйся, если `COUNT(*)` после join'а больше, чем число активов.\n2. **`NULL` в outer-части**. После `LEFT JOIN` часть колонок может быть `NULL`. Если потом делаешь `WHERE em.PriorityID = 2`, ты потеряешь все «несовпавшие» строки.\n3. **Забытое условие в `ON`**. Если написать `LEFT JOIN EmergencyMaintenances AS em ON 1=1`, получишь **декартово произведение** — каждая строка слева умножается на каждую справа. Это очень большая таблица и очень медленный запрос.\n4. **Алиасы колонок в `ON`**. Всегда квалифицируй имена: `ON em.AssetID = a.ID`, а не просто `ON AssetID = ID` — иначе при одинаковых именах колонок в разных таблицах сервер не сможет выбрать.\n\n## Что запомнить\n\n- `INNER JOIN` — только пересечение; `LEFT JOIN` — всё с левой стороны, правая может быть `NULL`.\n- Условия join-связи — в `ON`. Условия, фильтрующие уже собранный результат, — в `WHERE`. Для outer-join это **не взаимозаменяемо**.\n- Алиасы таблиц (`AS a`, `AS em`) — не роскошь, а необходимость в сложных запросах.\n- `COUNT(*)` после join'а может расти из-за связей один-ко-многим. Если это сбивает — посчитай `COUNT(DISTINCT …)` или сгруппируй."
+  },
+  "practice": [
+    {
+      "id": "joins-practice",
+      "title": "Соединение таблиц KMG",
+      "goal": "Научиться собирать реальные списки для UI через `INNER` и `LEFT JOIN` на схемах `Session1` и `Session2`.",
+      "steps": [
+        {
+          "id": "inner-join-two-tables",
+          "instruction": "В `Session1` верни список активов с **названием группы** (а не только `AssetGroupID`). Колонки: `AssetName`, `GroupName`.",
+          "code": {
+            "language": "sql",
+            "full": "SELECT\n    a.AssetName,\n    g.Name AS GroupName\nFROM Assets AS a\nINNER JOIN AssetGroups AS g\n    ON a.AssetGroupID = g.ID;",
+            "explanation": "`INNER JOIN` сопоставляет каждую строку `Assets` со строкой `AssetGroups` по ключу. В UI Session 1 ровно такой join нужен, чтобы в фильтре и в карточке показывать человекочитаемое имя группы, а не число."
+          },
+          "hints": [
+            "Алиасы `a` и `g` короткие и понятные. В больших запросах именно они делают код читаемым.",
+            "Если `AssetGroupID` у какого-то актива `NULL` (что вряд ли по схеме), он выпадет из `INNER JOIN`. Для гарантии используй `LEFT JOIN`."
+          ]
+        },
+        {
+          "id": "left-join-and-nulls",
+          "instruction": "В `Session2` построй список **всех активов**, а рядом — дату последней закрытой EM-заявки. Для активов без закрытых заявок в этой колонке должен быть `NULL`. Такой результат потом показывается в экране Accountable Party как `--` для `Last Closed EM`.",
+          "code": {
+            "language": "sql",
+            "full": "SELECT\n    a.AssetName,\n    MAX(em.EMEndDate) AS LastClosedEM\nFROM Assets AS a\nLEFT JOIN EmergencyMaintenances AS em\n    ON em.AssetID = a.ID\nGROUP BY a.ID, a.AssetName;",
+            "explanation": "`LEFT JOIN` оставляет в результате все активы, даже те, у которых нет ни одной заявки. `MAX(em.EMEndDate)` среди строк пустой правой части вернёт `NULL` — именно то, что нужно UI. `GROUP BY a.ID` нужен, потому что у одного актива может быть много заявок, и мы хотим одну строку на актив."
+          },
+          "hints": [
+            "Группировать удобнее по `a.ID` (гарантированно уникален), но в `SELECT` показывать `AssetName` — он присутствует в `GROUP BY` тоже, чтобы не нарушить правило.",
+            "Если бы мы написали `WHERE em.EMEndDate IS NOT NULL`, `LEFT JOIN` схлопнулся бы в `INNER JOIN` — активы без заявок пропали бы. Добавь это условие **в `ON`**, если действительно нужно учитывать только закрытые."
+          ]
+        },
+        {
+          "id": "three-table-join",
+          "instruction": "В `Session1` выведи `AssetName`, название его **департамента** и название его **локации**. Схема: `Assets.DepartmentLocationID` → `DepartmentLocations` → `Departments` + `Locations`.",
+          "code": {
+            "language": "sql",
+            "full": "SELECT\n    a.AssetName,\n    d.Name AS DepartmentName,\n    l.Name AS LocationName\nFROM Assets AS a\nINNER JOIN DepartmentLocations AS dl ON dl.ID = a.DepartmentLocationID\nINNER JOIN Departments         AS d  ON d.ID  = dl.DepartmentID\nINNER JOIN Locations           AS l  ON l.ID  = dl.LocationID;",
+            "explanation": "Каждый join добавляет ещё одну таблицу, связанную по ключу с уже имеющейся. Это ровно то, что отображается в каталоге Session 1: `Asset Name, Department Name, Asset SN`. Алиасы `a/dl/d/l` выбраны так, чтобы не пересекаться и хорошо читались."
+          },
+          "hints": [
+            "В цепочечных join'ах важен **порядок** `ON`-условий — каждый должен ссылаться только на таблицы, которые уже были присоединены.",
+            "Если `DepartmentLocations` содержит исторические записи с `EndDate IS NOT NULL` — добавь фильтр: `AND dl.EndDate IS NULL` в `ON` или `WHERE`, чтобы брать только актуальные."
+          ]
+        },
+        {
+          "id": "on-vs-where-pitfall",
+          "instruction": "Выведи список **всех активов** из `Session2`, а рядом — количество **открытых** заявок по каждому (`EMEndDate IS NULL`). Активы без открытых заявок должны быть в результате с нулём. Сделай так, чтобы условие `EMEndDate IS NULL` попало в правильное место.",
+          "code": {
+            "language": "sql",
+            "full": "SELECT\n    a.AssetName,\n    COUNT(em.ID) AS OpenEMs\nFROM Assets AS a\nLEFT JOIN EmergencyMaintenances AS em\n    ON em.AssetID = a.ID\n   AND em.EMEndDate IS NULL\nGROUP BY a.ID, a.AssetName\nORDER BY OpenEMs DESC, a.AssetName;",
+            "explanation": "Условие `em.EMEndDate IS NULL` намеренно стоит **в `ON`**, а не в `WHERE`. Это означает: при подшивке правой таблицы мы берём только открытые заявки; но если у актива ни одной открытой нет — он всё равно останется в результате с `NULL` на правой стороне, и `COUNT(em.ID)` вернёт 0 (`COUNT` не считает `NULL`).\n\nЕсли бы мы перенесли это условие в `WHERE`, активы без открытых заявок отсеялись бы полностью — мы потеряли бы именно тех, кого хотели увидеть."
+          },
+          "hints": [
+            "Попробуй ради проверки перенести условие в `WHERE` и посмотри, как изменится результат — это лучший способ запомнить правило навсегда.",
+            "`COUNT(em.ID)` (а не `COUNT(*)`) здесь важен: `COUNT(*)` считал бы все строки результата, включая активы без заявок, и для них возвращал бы 1, а не 0."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": [
+    "task-session-1-kmg-assets",
+    "task-session-2-emergency-maintenance",
+    "task-session-3-preventive-maintenance",
+    "task-session-4-inventory-warehouse",
+    "task-session-5-inventory-dashboard"
+  ],
+  "prerequisites": [
+    "01-select-basics",
+    "02-where-filtering",
+    "03-order-top-paging",
+    "04-aggregates-group-having"
+  ]
+}

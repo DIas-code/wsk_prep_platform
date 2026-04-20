@@ -1,0 +1,139 @@
+{
+  "id": "task-session-6-data-analysis",
+  "title": "Session 6 — Data Analysis & Reporting",
+  "summary": "Полный pipeline анализа данных на Python 3.13: загрузка и очистка 3 CSV (транзакции, продукты, партнёры), трендовый анализ, ARIMA-прогноз на 30 дней, K-means сегментация партнёров, PLTV и churn analysis. 10 подзадач, экспорт в CSV и PDF.",
+  "overview": "Session 6 — **аналитический pipeline** на Python для KMG. 10 подзадач от загрузки и очистки данных до прогнозирования продаж (ARIMA), сегментации партнёров (K-means), расчёта PLTV и анализа оттока.\n\nИспользуемый стек: **Python 3.13+**, `pandas`, `matplotlib`, `scikit-learn`, `statsmodels`. Все визуализации подчиняются KMG Corporate Style Guide. Все результаты экспортируются как CSV или PDF.\n\nИсходные данные — 3 CSV файла:\n- `sales_transactions.csv` — транзакции продаж\n- `products_KMG.csv` — продукты\n- `partners_KMG.csv` — партнёры/контрагенты",
+  "difficulty": "championship",
+  "relatedModule": "python-data-analysis",
+  "relatedLessons": [],
+  "timeLimitMinutes": 300,
+  "sections": [
+    {
+      "id": "1",
+      "title": "Task 1.1 — Data Exploration",
+      "body": "Загрузите 3 CSV, покажите первые 5 строк каждого, определите типы данных. Задокументируйте все 5 категорий проблем:\n\n- **Invalid Dates** — даты вне ожидаемого диапазона\n- **Negative Values** — отрицательные количества или цены\n- **Invalid IDs** — product/partner IDs, отсутствующие в справочниках\n- **Unexpected Values** — значения вне допустимых категорий\n- **Formatting Issues** — лишние пробелы, непоследовательное форматирование\n\n**Deliverable**: `Session6_DataExploration.txt`"
+    },
+    {
+      "id": "2",
+      "title": "Task 1.2 — Data Cleaning",
+      "body": "Правила очистки:\n\n- Пропущенный `age` в partners → заполнить **медианой**.\n- Пропущенный `phone_number` → заполнить `'0'`.\n- Пропущенный `promotion_id` → заполнить `'0'`.\n- Даты конвертировать в datetime; добавить **случайное время между 09:00 и 17:00**.\n- Телефоны стандартизировать: оставить **только цифры и ведущий `+`**.\n\n**Deliverables**: `partners_cleaned.csv`, `sales_transactions_cleaned.csv`"
+    },
+    {
+      "id": "3",
+      "title": "Task 1.3 — Sales Trend Analysis",
+      "body": "Рассчитать помесячно: total revenue, transaction count, average order value.\n\n- **3 line chart'а** (по одному на метрику, ось X = месяц)\n- **1 таблица**: top 3 месяца по revenue\n\n**Deliverable**: `Session6_SalesTrends.pdf`"
+    },
+    {
+      "id": "4",
+      "title": "Task 1.4 — Product Performance Analysis",
+      "body": "Per product: total quantity sold, total revenue, profit margin (`Price − Cost`).\n\n- **Bar chart**: revenue по категориям\n- **Таблица**: top 3 best-selling продукта по количеству\n\n**Deliverable**: `Session6_ProductPerformance.pdf`"
+    },
+    {
+      "id": "5",
+      "title": "Task 1.5 — Partner Analysis",
+      "body": "- Bar chart распределения по возрасту: группы `18–24`, `25–34`, `35–44`, `45+`.\n- Таблица процентов по полу (M/F).\n- Среднее total spending по membership tier (Basic/Silver/Gold).\n\n**Deliverable**: `Session6_PartnerAnalysis.pdf`"
+    },
+    {
+      "id": "6",
+      "title": "Task 1.6 — Sales Forecasting (ARIMA)",
+      "body": "Агрегировать daily total sales. Подобрать ARIMA-модель, сгенерировать **30-дневный** прогноз, посчитать **MAE**.\n\n**Deliverable**: `Session6_SalesForecast.csv` с колонками `Date` (YYYY-MM-DD), `Predicted_Sales` (float)."
+    },
+    {
+      "id": "7",
+      "title": "Task 1.7 — Segmentation & Recommendations",
+      "body": "Feature engineering per partner:\n\n- `total_purchases` — общее число транзакций\n- `avg_purchase_value` — средняя стоимость транзакции\n\nK-means на **3 кластера** (small / medium / large-volume). Recommendation engine:\n\n- Определить топ-3 продукта, **часто покупаемых вместе**.\n- Для каждого партнёра — 3 рекомендованных продукта, которые он **ещё не покупал**, на основе трендов его кластера.\n\n**Deliverable**: `Session6_Segmentation_and_Recommendations.csv` с колонками `partner_id`, `cluster_label`, `recommended_product_1`, `_2`, `_3`."
+    },
+    {
+      "id": "8",
+      "title": "Task 1.8 — Price Optimization",
+      "body": "- Таблица product performance: `product_id`, `total_quantity_sold`, `total_revenue` — отсортирована по revenue desc.\n- Таблица margin: отсортирована по margin desc.\n- Monthly trends по категориям с учётом сезонности.\n- **Price Elasticity of Demand (PED)** per product:\n  - `PED = (% change in quantity) / (% change in price)`\n  - High PED (elastic) → рекомендация **снизить** цену для роста объёма.\n  - Low PED (inelastic) → рекомендация **поднять** цену для роста прибыли.\n\n**Deliverables**:\n- `Session6_Product_Performance.csv` — `product_id`, `total_quantity_sold`, `total_revenue`, `profit_margin`\n- `Session6_Price_Analysis.csv` — `product_id`, `price_elasticity_of_demand`, `suggested_price_change` (%)"
+    },
+    {
+      "id": "9",
+      "title": "Task 1.9 — Partner Lifetime Value",
+      "body": "Per partner:\n\n- Average purchase value\n- Purchase frequency = транзакций в месяц\n- **PLTV = Average Purchase Value × Purchase Frequency × 36**\n\n**Deliverable**: `Session6_CLTV.csv` с колонками `partner_id` (int), `pltv` (float, 2 знака)."
+    },
+    {
+      "id": "10",
+      "title": "Task 1.10 — Churn Analysis",
+      "body": "- Определить churned-партнёров (`churned = TRUE`).\n- Посчитать общий **churn rate (%)**.\n- Посчитать **средний PLTV** отдельно для churned и active.\n\n**Deliverable**: `Session6_Churn_Analysis.csv` с колонками `churn_rate` (%), `avg_pltv_churned`, `avg_pltv_active` (по 2 знака)."
+    }
+  ],
+  "attachments": [
+    {
+      "label": "sales_transactions.csv — сырые транзакции",
+      "kind": "csv",
+      "source": { "format": "file", "path": "KazMunayGas/Session 6/sales_transactions.csv" }
+    },
+    {
+      "label": "products_KMG.csv — сырые продукты",
+      "kind": "csv",
+      "source": { "format": "file", "path": "KazMunayGas/Session 6/products_KMG.csv" }
+    },
+    {
+      "label": "partners_KMG.csv — сырые партнёры",
+      "kind": "csv",
+      "source": { "format": "file", "path": "KazMunayGas/Session 6/partners_KMG.csv" }
+    },
+    {
+      "label": "ARIMA Models — технический справочник",
+      "kind": "pdf",
+      "source": { "format": "file", "path": "KazMunayGas/Session 6/WSC2025_TP09_ARIMA_Models_actual.pdf" }
+    },
+    {
+      "label": "Data Dictionary (EN)",
+      "kind": "pdf",
+      "source": { "format": "file", "path": "KazMunayGas/Session 6/WSC2025_TP09_data_dictionary_en.pdf" }
+    }
+  ],
+  "deliverables": [
+    { "id": "data-exploration-txt", "label": "Session6_DataExploration.txt", "kind": "report", "spec": "Отчёт о 5 категориях проблем качества данных по 3 CSV." },
+    { "id": "partners-cleaned", "label": "partners_cleaned.csv", "kind": "file", "spec": "Очищенный файл партнёров (age median, phone standardised, даты в datetime)." },
+    { "id": "sales-cleaned", "label": "sales_transactions_cleaned.csv", "kind": "file", "spec": "Очищенный файл транзакций (promotion_id заполнен, даты в datetime с случайным временем 9–17)." },
+    { "id": "sales-trends-pdf", "label": "Session6_SalesTrends.pdf", "kind": "report", "spec": "3 line chart'а (revenue, count, AOV) + таблица top 3 месяца." },
+    { "id": "product-performance-pdf", "label": "Session6_ProductPerformance.pdf", "kind": "report", "spec": "Bar chart revenue по категориям + таблица top 3 продуктов по количеству." },
+    { "id": "partner-analysis-pdf", "label": "Session6_PartnerAnalysis.pdf", "kind": "report", "spec": "Bar chart возрастов + таблица пола + среднее spending по tier." },
+    { "id": "sales-forecast-csv", "label": "Session6_SalesForecast.csv", "kind": "file", "spec": "30-дневный ARIMA-прогноз с MAE; колонки Date, Predicted_Sales." },
+    { "id": "segmentation-csv", "label": "Session6_Segmentation_and_Recommendations.csv", "kind": "file", "spec": "3 кластера K-means + 3 рекомендации на партнёра." },
+    { "id": "product-performance-csv", "label": "Session6_Product_Performance.csv", "kind": "file", "spec": "Колонки product_id, total_quantity_sold, total_revenue, profit_margin." },
+    { "id": "price-analysis-csv", "label": "Session6_Price_Analysis.csv", "kind": "file", "spec": "Колонки product_id, price_elasticity_of_demand, suggested_price_change." },
+    { "id": "cltv-csv", "label": "Session6_CLTV.csv", "kind": "file", "spec": "Колонки partner_id, pltv (2 знака)." },
+    { "id": "churn-csv", "label": "Session6_Churn_Analysis.csv", "kind": "file", "spec": "Колонки churn_rate, avg_pltv_churned, avg_pltv_active (по 2 знака)." }
+  ],
+  "assessmentCriteria": [
+    { "id": "csv-load-preview", "text": "Все 3 CSV загружены, показаны первые 5 строк каждого.", "tag": "load" },
+    { "id": "dtypes-identified", "text": "Типы данных и нечисловые колонки корректно идентифицированы.", "tag": "explore" },
+    { "id": "five-issue-categories", "text": "Все 5 категорий проблем качества данных задокументированы в `Session6_DataExploration.txt`.", "tag": "explore" },
+    { "id": "age-median-fill", "text": "Пропущенный age заполнен медианой; phone / promotion_id — `'0'`.", "tag": "clean" },
+    { "id": "date-to-datetime", "text": "Даты корректно сконвертированы в datetime со случайным временем 9–17.", "tag": "clean" },
+    { "id": "phone-standardised", "text": "Телефоны стандартизованы: только цифры и ведущий `+`.", "tag": "clean" },
+    { "id": "cleaned-csv-exported", "text": "`partners_cleaned.csv` и `sales_transactions_cleaned.csv` корректно экспортированы.", "tag": "clean" },
+    { "id": "monthly-metrics", "text": "Помесячные revenue, count, AOV рассчитаны корректно.", "tag": "trends" },
+    { "id": "three-line-charts", "text": "Три line chart'а построены с месяцем по оси X.", "tag": "trends" },
+    { "id": "top3-months", "text": "Top 3 месяца по revenue корректно выделены в таблице.", "tag": "trends" },
+    { "id": "product-metrics", "text": "Per-product quantity, revenue, margin рассчитаны корректно.", "tag": "product" },
+    { "id": "revenue-by-category-bar", "text": "Bar chart revenue по категориям построен.", "tag": "product" },
+    { "id": "top3-products", "text": "Top 3 best-selling продукта корректны.", "tag": "product" },
+    { "id": "age-groups-bar", "text": "Bar chart возрастов использует группы 18–24, 25–34, 35–44, 45+.", "tag": "partner" },
+    { "id": "gender-percent", "text": "Распределение по полу показано как проценты.", "tag": "partner" },
+    { "id": "avg-spending-tier", "text": "Среднее spending рассчитано по membership tier.", "tag": "partner" },
+    { "id": "arima-fitted", "text": "ARIMA-модель обучена на daily sales time series.", "tag": "arima" },
+    { "id": "forecast-mae", "text": "30-дневный прогноз сгенерирован, MAE рассчитан.", "tag": "arima" },
+    { "id": "forecast-csv-format", "text": "`Session6_SalesForecast.csv` имеет корректные колонки и формат даты.", "tag": "arima" },
+    { "id": "features-engineered", "text": "`total_purchases` и `avg_purchase_value` корректно рассчитаны.", "tag": "segmentation" },
+    { "id": "kmeans-3-clusters", "text": "K-means с 3 кластерами применён; метки назначены каждому партнёру.", "tag": "segmentation" },
+    { "id": "recommendations", "text": "Рекомендации (top 3 ещё не купленных из кластера) сгенерированы.", "tag": "segmentation" },
+    { "id": "ped-calculated", "text": "PED рассчитан корректно per product.", "tag": "price" },
+    { "id": "price-suggestions-align", "text": "Рекомендации по цене соответствуют направлению эластичности.", "tag": "price" },
+    { "id": "csv-columns-sort", "text": "Все 4 performance/price CSV имеют корректные колонки и сортировку.", "tag": "price" },
+    { "id": "pltv-formula", "text": "PLTV рассчитан корректно (avg_value × frequency × 36).", "tag": "pltv" },
+    { "id": "churn-metrics", "text": "Churn rate и средние PLTV (churned vs active) корректны до 2 знаков.", "tag": "churn" },
+    { "id": "viz-style-guide", "text": "Все визуализации следуют KMG Corporate Style Guide.", "tag": "стиль" },
+    { "id": "all-deliverables", "text": "Все deliverables произведены и полны к концу сессии.", "tag": "полнота" }
+  ],
+  "sources": [
+    { "label": "WSC2025 TP09 S6 — основной брифинг (EN)", "kind": "pdf", "source": { "format": "file", "path": "KazMunayGas/Session 6/WSC2025_TP09_S6_actual_en.pdf" } },
+    { "label": "WSC2025 TP09 S6 — расширенный брифинг (EN)", "kind": "pdf", "source": { "format": "file", "path": "KazMunayGas/Session 6/WSC2025_TP09_S6_actual_en+.pdf" } }
+  ],
+  "notes": "Python 3.13+. Стек: pandas, matplotlib, scikit-learn (K-means), statsmodels (ARIMA). Время аккуратно добавляется случайно в диапазоне 09:00–17:00 при конверсии дат."
+}

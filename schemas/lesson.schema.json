@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "worldskills-platform/lesson.schema.json",
+  "title": "Lesson",
+  "type": "object",
+  "required": ["id", "moduleId", "title", "summary", "estimatedMinutes", "theory", "practice", "relatedTaskIds"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "moduleId": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "title": { "type": "string" },
+    "summary": { "type": "string" },
+    "estimatedMinutes": { "type": "integer", "minimum": 1 },
+    "theory": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "value"],
+          "properties": {
+            "kind": { "const": "inline" },
+            "value": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "path"],
+          "properties": {
+            "kind": { "const": "file" },
+            "path": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "practice": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/practiceBlock" }
+    },
+    "relatedTaskIds": { "type": "array", "items": { "type": "string" } },
+    "prerequisites": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "codeExample": {
+      "type": "object",
+      "required": ["language", "full", "explanation"],
+      "properties": {
+        "language": { "enum": ["csharp", "xaml", "sql", "python", "json", "bash"] },
+        "full": { "type": "string" },
+        "simplified": { "type": "string" },
+        "explanation": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "practiceStep": {
+      "type": "object",
+      "required": ["id", "instruction"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "instruction": { "type": "string" },
+        "code": { "$ref": "#/$defs/codeExample" },
+        "hints": { "type": "array", "items": { "type": "string" } },
+        "explanation": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "practiceBlock": {
+      "type": "object",
+      "required": ["id", "title", "goal", "steps"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "goal": { "type": "string" },
+        "steps": { "type": "array", "items": { "$ref": "#/$defs/practiceStep" } }
+      },
+      "additionalProperties": false
+    }
+  }
+}

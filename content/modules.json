@@ -1,0 +1,4 @@
+{
+  "version": 1,
+  "modules": ["csharp-maui", "sql-databases", "python-data-analysis"]
+}

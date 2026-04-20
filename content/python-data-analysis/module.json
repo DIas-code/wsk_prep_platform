@@ -1,0 +1,9 @@
+{
+  "id": "python-data-analysis",
+  "title": "Python для анализа данных",
+  "description": "Анализ данных на pandas: очистка, агрегация, визуализация, ARIMA-прогноз и K-means кластеризация. Python 3.13+. Покрывает сессию 6 WorldSkills.",
+  "lessonOrder": ["01-pandas-intro"],
+  "taskIds": ["task-session-6-data-analysis"],
+  "icon": "python",
+  "accent": "#3776AB"
+}

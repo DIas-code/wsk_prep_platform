@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "worldskills-platform/task.schema.json",
+  "title": "Task",
+  "type": "object",
+  "required": [
+    "id",
+    "title",
+    "summary",
+    "overview",
+    "difficulty",
+    "relatedModule",
+    "relatedLessons",
+    "sections",
+    "assessmentCriteria"
+  ],
+  "properties": {
+    "id": { "type": "string", "pattern": "^task-[a-z0-9-]+$" },
+    "title": { "type": "string", "minLength": 1 },
+    "summary": { "type": "string", "minLength": 1 },
+    "overview": { "type": "string", "minLength": 1 },
+    "difficulty": { "enum": ["easy", "medium", "hard", "championship"] },
+    "relatedModule": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "relatedLessons": { "type": "array", "items": { "type": "string" } },
+    "timeLimitMinutes": { "type": "integer", "minimum": 1 },
+    "sections": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/section" }
+    },
+    "attachments": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/attachment" }
+    },
+    "deliverables": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/deliverable" }
+    },
+    "assessmentCriteria": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/criterion" }
+    },
+    "sources": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/attachment" }
+    },
+    "notes": { "type": "string" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "section": {
+      "type": "object",
+      "required": ["id", "title", "body"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)*$" },
+        "title": { "type": "string", "minLength": 1 },
+        "body": { "type": "string" },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/section" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "attachment": {
+      "type": "object",
+      "required": ["label", "kind", "source"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1 },
+        "kind": {
+          "enum": ["pdf", "sql", "csv", "xml", "json", "image", "markdown", "text", "binary"]
+        },
+        "source": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["format", "value"],
+              "properties": {
+                "format": { "const": "inline" },
+                "value": { "type": "string" }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "required": ["format", "path"],
+              "properties": {
+                "format": { "const": "file" },
+                "path": { "type": "string", "minLength": 1 }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "required": ["format", "url"],
+              "properties": {
+                "format": { "const": "external" },
+                "url": { "type": "string", "format": "uri" }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "description": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "deliverable": {
+      "type": "object",
+      "required": ["id", "label", "kind"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "label": { "type": "string", "minLength": 1 },
+        "kind": { "enum": ["file", "app", "report", "db-state", "other"] },
+        "spec": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "criterion": {
+      "type": "object",
+      "required": ["id", "text"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "text": { "type": "string", "minLength": 1 },
+        "weight": { "type": "number", "exclusiveMinimum": 0 },
+        "tag": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

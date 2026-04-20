@@ -1,0 +1,22 @@
+{
+  "id": "csharp-maui",
+  "title": "C# + .NET MAUI",
+  "description": "Приложения под Android и Desktop на .NET 10 LTS MAUI. Формы, списки, фильтры, роли, работа с БД. Ориентирован на сессии 1–5 WorldSkills.",
+  "lessonOrder": [
+    "01-intro-to-maui",
+    "02-xaml-fundamentals",
+    "03-layout-containers",
+    "04-controls-catalog",
+    "05-data-binding",
+    "06-mvvm-toolkit"
+  ],
+  "taskIds": [
+    "task-session-1-kmg-assets",
+    "task-session-2-emergency-maintenance",
+    "task-session-3-preventive-maintenance",
+    "task-session-4-inventory-warehouse",
+    "task-session-5-inventory-dashboard"
+  ],
+  "icon": "maui",
+  "accent": "#512BD4"
+}

@@ -1,0 +1,60 @@
+{
+  "id": "01-intro-to-maui",
+  "moduleId": "csharp-maui",
+  "title": "Знакомство с .NET MAUI",
+  "summary": "Что такое .NET MAUI, как он связан с .NET 10 LTS и зачем нужен. Устанавливаем SDK + MAUI workload, создаём первый проект через CLI, запускаем его на Windows и Android, разбираем анатомию проекта.",
+  "estimatedMinutes": 45,
+  "theory": {
+    "kind": "inline",
+    "value": "# .NET MAUI\n\n**MAUI** (Multi-platform App UI) — это фреймворк Microsoft для нативных приложений под **Windows, Android, iOS и macOS** из единой кодовой базы на C# + XAML. MAUI пришёл на смену Xamarin.Forms; идеологически он ближе к WPF, но работает на всех платформах сразу. Это идеальный фреймворк под WorldSkills IT Software Solutions — Sessions 1, 3 требуют Android-приложения, Sessions 2, 4, 5 — Windows desktop, и всё можно делать на одном стеке.\n\nВ уроках мы таргетируем **.NET 10 LTS** — текущая long-term-support версия на момент подготовки курса.\n\n## Что ставим\n\n1. **.NET 10 SDK** — скачиваем с [dotnet.microsoft.com](https://dotnet.microsoft.com/download). После установки `dotnet --version` должен показать `10.x`.\n2. **MAUI workload** — устанавливается через `dotnet workload`:\n\n   ```bash\n   dotnet workload install maui\n   ```\n\n3. **Visual Studio 2026** (или VS Code с расширением C# Dev Kit). Для Windows-разработки — обязательно VS с workload'ом **.NET Multi-platform App UI development**. Для Android — ставится Android SDK, Emulator и JDK автоматически вместе с workload'ом.\n4. **Android-эмулятор** или физическое устройство с включённым USB Debugging. На WorldSkills обычно дают железный девайс.\n\n## Создание проекта\n\nВ терминале:\n\n```bash\ndotnet new maui -n KmgAssets -f net10.0\ncd KmgAssets\ndotnet build\n```\n\n`-n` — имя проекта, `-f` — target framework. Без `-f` шаблон возьмёт последний SDK на машине — это нормально, но явное указание убирает неоднозначность.\n\nЗапуск под Windows:\n\n```bash\ndotnet build -t:Run -f net10.0-windows10.0.19041.0\n```\n\nЗапуск под Android (нужен подключённый эмулятор или устройство):\n\n```bash\ndotnet build -t:Run -f net10.0-android\n```\n\nНа практике разработчики жмут F5 в Visual Studio, выбрав нужный таргет в dropdown'е сверху.\n\n## Анатомия проекта\n\nПосле `dotnet new maui` появляются такие ключевые файлы:\n\n- **`MauiProgram.cs`** — точка входа. Здесь настраиваются DI-контейнер, шрифты, логирование. Думай о нём как о `Program.cs` в ASP.NET Core.\n- **`App.xaml` / `App.xaml.cs`** — ресурсы уровня приложения (цвета, стили, темы). `App.xaml.cs` создаёт корневое окно и указывает стартовую страницу.\n- **`AppShell.xaml`** — навигационная оболочка. Определяет маршруты, вкладки, flyout. Подробно — в уроке 8.\n- **`MainPage.xaml`** + `.xaml.cs` — первая страница. Пара XAML-разметка + code-behind — стандартный паттерн MAUI.\n- **`Platforms/`** — папки с кодом, специфичным для каждой ОС: `Android`, `iOS`, `MacCatalyst`, `Windows`, `Tizen`. Здесь живут Manifest/Info.plist, точки входа на каждой платформе, native-handler'ы.\n- **`Resources/`** — изображения, шрифты, стили, splash-screen. Одни и те же ресурсы автоматически адаптируются под все платформы (SVG масштабируется в нужные PNG, шрифты подключаются).\n- **`KmgAssets.csproj`** — проект-файл. В нём перечислены таргет-фреймворки (`<TargetFrameworks>net10.0-android;net10.0-windows10.0.19041.0</TargetFrameworks>`), настройки MAUI и NuGet-пакеты.\n\n## Single project, multiple targets\n\nГлавная идея MAUI — **один csproj, много таргетов**. `TargetFrameworks` перечисляет нужные платформы; MSBuild компилирует проект под каждую. Если под Windows нужен код, которого нет на Android (например, Win32-API), это решается через `#if WINDOWS` блоки или папку `Platforms/Windows/` — вернёмся к этому в уроке 15.\n\n## Что вынести\n\n- MAUI = кросс-платформенный UI-стек Microsoft. Мы на **.NET 10 LTS**.\n- Один проект компилируется под несколько таргетов.\n- `MauiProgram.cs` — точка входа; `App.xaml` — ресурсы; `AppShell.xaml` — навигация; `MainPage.xaml` — первая страница.\n- Начинаем с `dotnet new maui` и `dotnet build -t:Run -f <target>`."
+  },
+  "practice": [
+    {
+      "id": "first-project",
+      "title": "Первый проект MAUI",
+      "goal": "Создать, собрать и запустить проект на локальной машине; научиться ориентироваться в структуре.",
+      "steps": [
+        {
+          "id": "create-project",
+          "instruction": "В терминале создай проект `KmgAssets` под .NET 10 и собери его. Убедись, что сборка проходит без ошибок.",
+          "code": {
+            "language": "bash",
+            "full": "dotnet new maui -n KmgAssets -f net10.0\ncd KmgAssets\ndotnet build",
+            "explanation": "Шаблон `maui` генерирует полноценный single-project со всеми файлами, описанными в теории. `-f net10.0` фиксирует целевую версию фреймворка."
+          },
+          "hints": [
+            "Если `dotnet new maui` ругается — проверь `dotnet workload list`; должен быть установлен `maui`.",
+            "Первая сборка долгая (минуты): MSBuild компилирует проект под все таргеты сразу."
+          ]
+        },
+        {
+          "id": "run-windows",
+          "instruction": "Запусти приложение под Windows через CLI или F5 в Visual Studio. Убедись, что открывается окно с кнопкой `Click me` и счётчиком.",
+          "code": {
+            "language": "bash",
+            "full": "dotnet build -t:Run -f net10.0-windows10.0.19041.0",
+            "explanation": "Таргет-триплет указывает ОС и минимальную версию SDK. Номер после `windows10.0.` — это значение, которое генерирует шаблон; оно должно совпадать с тем, что стоит в `TargetFrameworks` в `.csproj`."
+          },
+          "hints": [
+            "Если запуск под Windows падает с `MSB4018` — скорее всего, не установлен Windows App SDK. Установи через VS Installer (`.NET MAUI → Windows App SDK`)."
+          ]
+        },
+        {
+          "id": "explore-structure",
+          "instruction": "Открой проект в IDE и найди файлы: `MauiProgram.cs`, `App.xaml`, `AppShell.xaml`, `MainPage.xaml`, папку `Platforms/Android/MainActivity.cs`. Прочитай их бегло — по 30 секунд на каждый. Цель — узнать, что где лежит, а не запомнить содержимое.",
+          "hints": [
+            "`MainActivity.cs` — это Android-специфичная точка входа. На других платформах своя: `Platforms/Windows/App.xaml.cs`, `Platforms/iOS/AppDelegate.cs`.",
+            "В следующем уроке разберём `MainPage.xaml` детально."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": [
+    "task-session-1-kmg-assets",
+    "task-session-2-emergency-maintenance",
+    "task-session-3-preventive-maintenance",
+    "task-session-4-inventory-warehouse",
+    "task-session-5-inventory-dashboard"
+  ]
+}

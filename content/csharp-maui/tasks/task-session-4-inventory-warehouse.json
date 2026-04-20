@@ -1,0 +1,141 @@
+{
+  "id": "task-session-4-inventory-warehouse",
+  "title": "Session 4 — Inventory & Warehouse (Desktop)",
+  "summary": "Windows desktop-приложение на .NET 10 с тремя модулями: Purchase Order (закупки у поставщиков), Warehouse Management (перемещение между складами) и Inventory Report (остатки по складам). Учёт по (Part + BatchNumber), жёсткая валидация отрицательных остатков.",
+  "overview": "Session 4 — **Windows desktop-приложение** для администраторов KMG с тремя модулями, доступными через вкладки одного главного окна:\n\n1. **Purchase Order Management** — закупки у внешних поставщиков.\n2. **Warehouse Management** — перемещение запчастей между складами.\n3. **Inventory Report** — остатки по складам в трёх режимах.\n\nКлючевая механика: учёт ведётся по ключу **(Part Name + Batch Number)** для запчастей с `BatchNumberHasRequired = true`. Система **никогда** не должна допускать отрицательные остатки ни на одном складе.",
+  "difficulty": "championship",
+  "relatedModule": "csharp-maui",
+  "relatedLessons": [],
+  "timeLimitMinutes": 300,
+  "sections": [
+    {
+      "id": "1",
+      "title": "Подготовка БД",
+      "body": "Создайте БД `Session4` на **MS SQL Server** и импортируйте `Session4-MsSQL.sql`. Если БД уже предоставлена администраторами — использовать её как есть, без изменений схемы."
+    },
+    {
+      "id": "2",
+      "title": "Главный экран Inventory Management",
+      "body": "Стартовая форма. Единый список всех транзакций (Purchase Orders + Warehouse Movements). Колонки: Part Name, Transaction Type, Date, Amount, Source, Destination.\n\nСверху — 3 вкладки-кнопки: `Purchase Order Management`, `Warehouse Management`, `Inventory Report`."
+    },
+    {
+      "id": "3",
+      "title": "Сортировка главного списка",
+      "body": "По умолчанию: Date по возрастанию (старые сверху); при равных датах Purchase Orders выше Warehouse Movements.\n\nЗаголовки колонок кликабельны: 1 клик = ascending, 2 клик = descending, 3 клик = сброс к дефолту. На активной колонке показана стрелка направления сортировки."
+    },
+    {
+      "id": "4",
+      "title": "Цветовое кодирование Amount",
+      "body": "У строк Purchase Order ячейка Amount — **зелёный фон**. У Warehouse Management — другой визуальный стиль. На экране **обязательна легенда**."
+    },
+    {
+      "id": "5",
+      "title": "Edit и Remove в строке",
+      "body": "В каждой строке кнопки Edit и Remove. Удаление транзакции, которое привело бы к отрицательному остатку на **любом** складе, **блокируется** с сообщением об ошибке."
+    },
+    {
+      "id": "6",
+      "title": "Форма Purchase Order",
+      "body": "Открывается через вкладку. Поля:\n\n- Supplier (dropdown из БД)\n- Destination Warehouse (dropdown из БД)\n- Date (date picker)\n- Parts List: Part Name (searchable dropdown из `Parts`), Batch Number (text, обязателен только при `BatchNumberHasRequired = true`), Amount (положительное десятичное), кнопка `Add to list`; список с Remove action\n\nХотя бы одна запчасть обязательна перед submit. При редактировании: нельзя удалить позицию, если это приведёт к отрицательному остатку."
+    },
+    {
+      "id": "7",
+      "title": "Логика Batch Number",
+      "body": "- `BatchNumberHasRequired = true` → batch number **обязателен**, сохраняется в БД, используется как часть ключа остатка.\n- `BatchNumberHasRequired = false` → введённое значение **игнорируется** и не сохраняется.\n- Один и тот же Part Name можно указать несколько раз в одном заказе, только если batch numbers различаются.\n- Остаток считается по ключу (Part Name + Batch Number)."
+    },
+    {
+      "id": "8",
+      "title": "Форма Warehouse Management",
+      "body": "Открывается через вкладку. Поля:\n\n- Source Warehouse (dropdown) — в Parts попадают только запчасти, реально присутствующие на этом складе.\n- Destination Warehouse (dropdown) — **обязательно отличается** от Source.\n- Date (date picker)\n- Parts List: Part Name (searchable, фильтруется по Source), Batch Number (dropdown при required, иначе свободный текст), Amount (положительное десятичное, **не больше доступного остатка**)\n\nСистема **никогда** не допускает отрицательный остаток ни на каком складе ни в какой момент времени."
+    },
+    {
+      "id": "9",
+      "title": "Inventory Report",
+      "body": "Открывается через вкладку. Поля:\n\n- Warehouse (dropdown)\n- Inventory Type (radio): `Current Stock`, `Received Stock`, `Out of Stock`\n- Таблица: Part Name, Current Stock, Received Stock\n\nДля запчастей с batch-учётом — кнопка `View Batch Numbers`, которая открывает под-представление со списком batch-номеров и индивидуальными Current/Received Stock по каждому.",
+      "children": [
+        {
+          "id": "9.1",
+          "title": "Формулы остатков",
+          "body": "Для связки (склад, запчасть, batch):\n\n- **Received** = сумма Amount из Purchase Orders с `DestinationWarehouseID = склад`\n- **Transferred In** = сумма Amount из Warehouse Movements с `DestinationWarehouseID = склад`\n- **Transferred Out** = сумма Amount из Warehouse Movements с `SourceWarehouseID = склад`\n- **Current Stock** = Received + Transferred In − Transferred Out"
+        },
+        {
+          "id": "9.2",
+          "title": "Режимы Inventory Type",
+          "body": "- **Current Stock** — запчасти, у которых остаток > 0 на выбранном складе.\n- **Received Stock** — все запчасти, когда-либо полученные на склад (через Purchase Orders).\n- **Out of Stock** — запчасти, ранее полученные, но сейчас с остатком 0."
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "title": "Style Guide и UX",
+      "body": "Те же общие правила: осмысленные сообщения, скроллбары, даты `YYYY-MM-DD`, модальность, красные `Delete`/`Cancel`, легенды при цветовом кодировании."
+    }
+  ],
+  "attachments": [
+    {
+      "label": "Session4 — MS SQL Server dump",
+      "kind": "sql",
+      "source": { "format": "file", "path": "KazMunayGas/Session 4/Session4-MsSQL.sql" },
+      "description": "Скрипт создания БД `Session4` и seed-данных (37 заказов, 136 line items)."
+    }
+  ],
+  "deliverables": [
+    {
+      "id": "desktop-app",
+      "label": "Windows desktop-приложение (.NET 10)",
+      "kind": "app",
+      "spec": "Одно главное окно с тремя вкладками. Все три модуля (PO, WH Management, Inventory Report) функциональны. Валидация отрицательных остатков работает во всех точках."
+    },
+    {
+      "id": "db-session4",
+      "label": "БД `Session4`",
+      "kind": "db-state",
+      "spec": "БД `Session4` развёрнута из скрипта, схема не модифицирована."
+    }
+  ],
+  "assessmentCriteria": [
+    { "id": "db-imported", "text": "БД `Session4` создана и SQL-скрипт импортирован корректно.", "tag": "бд" },
+    { "id": "main-screen-tabs", "text": "Главный экран Inventory — стартовая форма с 3 вкладками.", "tag": "ui" },
+    { "id": "main-columns", "text": "Все транзакции показаны в колонках Part Name, Transaction Type, Date, Amount, Source, Destination.", "tag": "ui" },
+    { "id": "default-sort", "text": "Сортировка по умолчанию: старые сверху; при равных датах PO выше WH Movements.", "tag": "сортировка" },
+    { "id": "click-sort", "text": "Кликабельная сортировка работает: ascending → descending → reset; стрелка на активной колонке.", "tag": "сортировка" },
+    { "id": "amount-green-po", "text": "Amount в строках Purchase Order имеет зелёный фон.", "tag": "цвет" },
+    { "id": "row-edit-remove", "text": "Кнопки Edit и Remove в каждой строке функциональны.", "tag": "ui" },
+    { "id": "delete-blocked-negative", "text": "Удаление блокируется и показывает ошибку, если остаток ушёл бы в минус.", "tag": "валидация" },
+    { "id": "po-fields", "text": "Форма PO: Supplier, Warehouse, Date, Parts list с корректными полями.", "tag": "po" },
+    { "id": "searchable-part-dropdown", "text": "Part Name — searchable dropdown в PO и WH Management.", "tag": "ui" },
+    { "id": "batch-mandatory-when-required", "text": "Batch Number обязателен и сохраняется при `BatchNumberHasRequired = true`; игнорируется при false.", "tag": "batch" },
+    { "id": "duplicate-part-batch-rule", "text": "Дубликат Part Name в одном заказе допускается только с разными batch numbers.", "tag": "batch" },
+    { "id": "po-edit-no-negative", "text": "При редактировании PO нельзя удалить позицию, если остаток уйдёт в минус.", "tag": "валидация" },
+    { "id": "wh-fields", "text": "Форма WH Management: Source, Destination (различаются), Date, отфильтрованный Parts list.", "tag": "wh" },
+    { "id": "parts-filtered-by-source", "text": "Dropdown запчастей в WH Management отфильтрован по запасам Source Warehouse.", "tag": "wh" },
+    { "id": "batch-dropdown-wh", "text": "Batch Number в WH Management показан как dropdown при required.", "tag": "wh" },
+    { "id": "transfer-blocked-negative", "text": "Перемещение блокируется, если остаток на любом складе ушёл бы в минус.", "tag": "валидация" },
+    { "id": "source-dest-differ", "text": "Source и Destination warehouse не могут совпадать.", "tag": "wh" },
+    { "id": "report-warehouse-radio", "text": "Inventory Report: dropdown склада и 3 radio-кнопки типа инвентаря.", "tag": "report" },
+    { "id": "current-stock-correct", "text": "`Current Stock` показывает корректные количества.", "tag": "report" },
+    { "id": "received-stock-correct", "text": "`Received Stock` показывает все когда-либо полученные запчасти.", "tag": "report" },
+    { "id": "out-of-stock-correct", "text": "`Out of Stock` показывает запчасти, ранее полученные, сейчас с 0.", "tag": "report" },
+    { "id": "view-batch-action", "text": "`View Batch Numbers` доступен для batch-учётных запчастей.", "tag": "report" },
+    { "id": "batch-subview-correct", "text": "Под-представление batch-номеров показывает корректные Current / Received Stock по каждому.", "tag": "report" },
+    { "id": "stock-key-part-batch", "text": "Остаток считается по ключу (Part Name + Batch Number), где применимо.", "tag": "report" },
+    { "id": "destructive-buttons-red", "text": "Кнопки `Delete` / `Cancel` красные.", "tag": "ux" },
+    { "id": "date-format-iso", "text": "Все даты в формате `YYYY-MM-DD`.", "tag": "формат" },
+    { "id": "modal-forms", "text": "Модальное поведение соблюдено.", "tag": "ux" },
+    { "id": "style-guide-applied", "text": "KMG Style Guide применён консистентно.", "tag": "стиль" },
+    { "id": "all-functional-by-end", "text": "Все фичи полностью функциональны к концу сессии.", "tag": "полнота" }
+  ],
+  "sources": [
+    {
+      "label": "WSC2025 TP09 S4 — основной брифинг (RU)",
+      "kind": "pdf",
+      "source": { "format": "file", "path": "KazMunayGas/Session 4/WSC2025_TP09_S4_RU.pdf" }
+    },
+    {
+      "label": "Сессия 4 — дополнительный документ (RU)",
+      "kind": "pdf",
+      "source": { "format": "file", "path": "KazMunayGas/Session 4/Сессия 4.pdf" }
+    }
+  ],
+  "notes": "Критически важно: валидация отрицательных остатков должна срабатывать в Purchase Order (редактирование), Warehouse Management (создание), и в Remove транзакции из главного списка — т.е. в трёх местах."
+}

@@ -1,0 +1,67 @@
+{
+  "id": "04-controls-catalog",
+  "moduleId": "csharp-maui",
+  "title": "Каталог контролов: Label, Button, Entry, Picker, DatePicker, Switch, Image",
+  "summary": "Базовый набор UI-элементов .NET MAUI с примерами: текст, кнопки, поля ввода, выпадающие списки, DatePicker, Switch, Image. Валидация и общие паттерны обработки ввода. .NET 10 MAUI.",
+  "estimatedMinutes": 45,
+  "theory": {
+    "kind": "inline",
+    "value": "# Контролы\n\nВ этом уроке — обзорная экскурсия по базовым контролам MAUI. Для каждого: что делает, ключевые свойства, события, и в каких сценариях WorldSkills он встречается.\n\n## Label\n\nСтатический текст. Ключевые свойства: `Text`, `FontSize`, `TextColor`, `FontAttributes` (`Bold`, `Italic`), `LineBreakMode`, `MaxLines`.\n\n```xml\n<Label Text=\"Asset Name\"\n       FontSize=\"14\"\n       TextColor=\"Gray\"\n       FontAttributes=\"Bold\" />\n```\n\nДля многострочного текста — `LineBreakMode=\"WordWrap\"`; ограничить высоту — `MaxLines`.\n\n## Button\n\nКнопка. Ключевые свойства: `Text`, `Clicked`, `Command`, `IsEnabled`, `Background`, `TextColor`.\n\n```xml\n<Button Text=\"Сохранить\"\n        Command=\"{Binding SaveCommand}\"\n        IsEnabled=\"{Binding CanSave}\" />\n```\n\nВ задачах KMG **кнопки `Delete` и `Cancel` должны быть красными** — задаётся через `BackgroundColor=\"Red\"` или стиль в `App.xaml`.\n\n`Command` (через MVVM, урок 6) предпочтительнее `Clicked` (событие для code-behind).\n\n## Entry\n\nОднострочное поле ввода текста. Ключевые свойства: `Text`, `Placeholder`, `Keyboard`, `IsPassword`, `MaxLength`, `ReturnType`.\n\n```xml\n<Entry Placeholder=\"Asset Name\"\n       Text=\"{Binding AssetName}\"\n       MaxLength=\"100\" />\n\n<Entry Placeholder=\"Пароль\"\n       Text=\"{Binding Password}\"\n       IsPassword=\"True\" />\n\n<Entry Placeholder=\"Количество\"\n       Text=\"{Binding Amount}\"\n       Keyboard=\"Numeric\" />\n```\n\n`Keyboard=\"Numeric\"`, `\"Email\"`, `\"Telephone\"` — подсказка ОС, какую клавиатуру поднять (на Android это важно).\n\nСобытия: `TextChanged` (на каждый символ), `Completed` (на Enter).\n\n## Editor\n\nМногострочное поле ввода (для `Description`, `Technician Note`). Ключевые свойства те же, что у `Entry`, плюс `AutoSize=\"TextChanges\"` — поле подстраивается под объём текста.\n\n```xml\n<Editor Placeholder=\"Description of Emergency\"\n        Text=\"{Binding Description}\"\n        AutoSize=\"TextChanges\"\n        MinimumHeightRequest=\"100\" />\n```\n\n## Picker\n\nВыпадающий список с фиксированным набором значений. Это основной dropdown в MAUI.\n\n```xml\n<Picker Title=\"Department\"\n        ItemsSource=\"{Binding Departments}\"\n        ItemDisplayBinding=\"{Binding Name}\"\n        SelectedItem=\"{Binding SelectedDepartment, Mode=TwoWay}\" />\n```\n\n- `ItemsSource` — коллекция объектов.\n- `ItemDisplayBinding` — какое свойство объекта показать в UI.\n- `SelectedItem` — двусторонняя привязка к выбранному объекту.\n\nВ Session 1 четыре фильтра сверху каталога — это четыре `Picker`'а. В формах Add/Edit Asset — тоже `Picker` для Department, Location, Asset Group.\n\n**SearchablePicker / SearchableEntry**: базовый `Picker` не имеет поиска. В Session 4 требуется `searchable dropdown` для парт-листов — его реализуют либо через open-source компонент (`CommunityToolkit.Maui.Markup`), либо через кастомную пару `Entry + CollectionView` (подход из урока 12).\n\n## DatePicker и TimePicker\n\nВыбор даты / времени.\n\n```xml\n<DatePicker Date=\"{Binding WarrantyDate, Mode=TwoWay}\"\n            Format=\"yyyy-MM-dd\"\n            MinimumDate=\"2020-01-01\"\n            MaximumDate=\"2030-12-31\" />\n```\n\n- `Format=\"yyyy-MM-dd\"` — строка формата; задачи KMG требуют ISO `YYYY-MM-DD`.\n- `MinimumDate` / `MaximumDate` — границы допустимого диапазона.\n\nДля опциональной даты (`Expired Warranty` в Session 1) используй `NullableDatePicker` из `CommunityToolkit.Maui` — стандартный `DatePicker.Date` не может быть `null`.\n\n## Switch\n\nБинарный переключатель (on/off). Применяется для булевых полей.\n\n```xml\n<Switch IsToggled=\"{Binding IsActive, Mode=TwoWay}\"\n        OnColor=\"Green\" ThumbColor=\"White\" />\n```\n\nВ задачах KMG нет прямых требований на Switch, но он пригодится для `isAdmin` флагов и фильтров «показывать только открытые заявки».\n\n## CheckBox\n\nКлассический чекбокс. В Session 3 `TaskDone` чекбокс в каждой строке — это он.\n\n```xml\n<CheckBox IsChecked=\"{Binding IsDone, Mode=TwoWay}\"\n          Color=\"#512BD4\" />\n```\n\nСобытие `CheckedChanged` срабатывает при изменении; в Session 3 оно триггерит сохранение в БД и обновление списка.\n\n## Image\n\nОтображает картинку из ресурсов, файловой системы, embedded resource или URL.\n\n```xml\n<Image Source=\"asset_placeholder.png\"\n       HeightRequest=\"120\"\n       Aspect=\"AspectFit\" />\n\n<Image Source=\"{Binding PhotoPath}\"\n       Aspect=\"AspectFill\"\n       HeightRequest=\"200\" />\n```\n\n`Aspect`:\n- `AspectFit` — вписать без обрезки (может остаться пустое пространство).\n- `AspectFill` — заполнить, возможна обрезка.\n- `Fill` — растянуть (искажает пропорции).\n\nДля захвата/выбора фото (Session 1) — `MediaPicker.Default.CapturePhotoAsync()` и `PickPhotoAsync()`; разрешения на Android требуются (урок 15).\n\n## ActivityIndicator\n\nСпиннер, пока что-то грузится.\n\n```xml\n<ActivityIndicator IsRunning=\"{Binding IsBusy}\"\n                   IsVisible=\"{Binding IsBusy}\"\n                   Color=\"#512BD4\" />\n```\n\n## Что запомнить\n\n- `Label`, `Entry`, `Editor`, `Button`, `Picker`, `DatePicker`, `Switch`, `CheckBox`, `Image`, `ActivityIndicator` — 90 % форм KMG.\n- `Picker` — основной dropdown. `ItemsSource` + `ItemDisplayBinding` + `SelectedItem` — стандартная триада.\n- `DatePicker.Format=\"yyyy-MM-dd\"` — требование ISO.\n- Под опциональную дату — `NullableDatePicker` из `CommunityToolkit.Maui`.\n- `Keyboard=\"Numeric\"` / `\"Email\"` — подсказка для софт-клавиатуры."
+  },
+  "practice": [
+    {
+      "id": "form-controls",
+      "title": "Форма добавления актива",
+      "goal": "Собрать форму с реальным набором контролов из Session 1.",
+      "steps": [
+        {
+          "id": "entry-editor-picker",
+          "instruction": "Добавь поля: `Entry` для Asset Name, `Picker` для Department, `Editor` для Description (многострочное). Все с `Placeholder` / `Title`.",
+          "code": {
+            "language": "xaml",
+            "full": "<VerticalStackLayout Padding=\"16\" Spacing=\"12\">\n    <Entry Placeholder=\"Asset Name\" MaxLength=\"100\" />\n\n    <Picker Title=\"Department\"\n            ItemsSource=\"{Binding Departments}\"\n            ItemDisplayBinding=\"{Binding Name}\"\n            SelectedItem=\"{Binding SelectedDepartment, Mode=TwoWay}\" />\n\n    <Editor Placeholder=\"Asset Description\"\n            AutoSize=\"TextChanges\"\n            MinimumHeightRequest=\"100\" />\n</VerticalStackLayout>",
+            "explanation": "Три базовых контрола ввода, каждый со своей ролью. `ItemDisplayBinding=\"{Binding Name}\"` предполагает, что `Departments` — это `List<Department>`, где у каждого есть свойство `Name`. `MinimumHeightRequest` даёт Editor'у начальный размер, чтобы он не был однострочным."
+          },
+          "hints": [
+            "MaxLength у Entry не показывает счётчик — это лишь ограничение ввода.",
+            "Picker при клике показывает либо модальный список (Android), либо нативный dropdown (Windows)."
+          ]
+        },
+        {
+          "id": "date-switch",
+          "instruction": "Добавь `DatePicker` для WarrantyDate с форматом `yyyy-MM-dd` и `Switch` для бинарного флага «Актив активен».",
+          "code": {
+            "language": "xaml",
+            "full": "<Grid ColumnDefinitions=\"Auto,*\" RowDefinitions=\"Auto,Auto\"\n      ColumnSpacing=\"12\" RowSpacing=\"8\">\n\n    <Label Text=\"Warranty Date:\" Grid.Row=\"0\" Grid.Column=\"0\" VerticalOptions=\"Center\" />\n    <DatePicker Grid.Row=\"0\" Grid.Column=\"1\"\n                Date=\"{Binding WarrantyDate, Mode=TwoWay}\"\n                Format=\"yyyy-MM-dd\" />\n\n    <Label Text=\"Активен:\" Grid.Row=\"1\" Grid.Column=\"0\" VerticalOptions=\"Center\" />\n    <Switch Grid.Row=\"1\" Grid.Column=\"1\"\n            IsToggled=\"{Binding IsActive, Mode=TwoWay}\"\n            HorizontalOptions=\"Start\" />\n</Grid>",
+            "explanation": "ISO-формат `yyyy-MM-dd` нужен во всех сессиях KMG. `Mode=TwoWay` гарантирует, что при изменении контрола значение попадёт обратно в view-model."
+          },
+          "hints": [
+            "Для опциональной даты (Session 1 — Expired Warranty) стандартного `DatePicker` мало — нужен `NullableDatePicker`.",
+            "`HorizontalOptions=\"Start\"` на Switch прижимает его к левому краю ячейки (иначе он растянулся бы)."
+          ]
+        },
+        {
+          "id": "photo-and-spinner",
+          "instruction": "Добавь `Image` для предпросмотра фото актива и `ActivityIndicator` для состояния загрузки. Фото — по binding'у `PhotoPath`, индикатор — по `IsBusy`.",
+          "code": {
+            "language": "xaml",
+            "full": "<VerticalStackLayout Spacing=\"8\">\n    <Image Source=\"{Binding PhotoPath}\"\n           Aspect=\"AspectFit\"\n           HeightRequest=\"200\"\n           BackgroundColor=\"#F0F0F0\" />\n\n    <Button Text=\"Сделать фото\"\n            Command=\"{Binding CapturePhotoCommand}\" />\n\n    <ActivityIndicator IsRunning=\"{Binding IsBusy}\"\n                       IsVisible=\"{Binding IsBusy}\"\n                       Color=\"#512BD4\" />\n</VerticalStackLayout>",
+            "explanation": "`Aspect=\"AspectFit\"` впишет фото в 200px высоты без искажений; серый `BackgroundColor` — визуальная заглушка, пока фото не выбрано. `ActivityIndicator.IsVisible` скрывает спиннер полностью, когда он не нужен — иначе он оставляет пустую область."
+          },
+          "hints": [
+            "Команду `CapturePhotoCommand` сделаем в уроках 6/15 — она вызовет `MediaPicker.Default.CapturePhotoAsync()` и попросит Android Permission на камеру.",
+            "Несколько фото (как требует Session 1) — это `CollectionView` с ItemTemplate из `Image`."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": [
+    "task-session-1-kmg-assets",
+    "task-session-2-emergency-maintenance",
+    "task-session-3-preventive-maintenance",
+    "task-session-4-inventory-warehouse",
+    "task-session-5-inventory-dashboard"
+  ],
+  "prerequisites": ["01-intro-to-maui", "02-xaml-fundamentals", "03-layout-containers"]
+}

@@ -1,0 +1,150 @@
+{
+  "id": "task-session-3-preventive-maintenance",
+  "title": "Session 3 — Preventive Maintenance (Android)",
+  "summary": "Android-приложение на .NET 10 MAUI для планового обслуживания активов. Каталог активных задач с цветовым кодированием, генерация повторяющихся расписаний (daily/weekly/monthly/every-N-km), работа через Web API.",
+  "overview": "Session 3 — **плановое (preventive) обслуживание** активов KMG. PM-задачи — это регулярные работы (инспекции, смазка, замена масла), которые повторяются по времени (ежедневно/еженедельно/ежемесячно) или по пробегу (каждые N км).\n\nAndroid-приложение подключается к БД `Session3` через Web API, показывает техникам активные задачи, позволяет отмечать выполненные и создавать новые PM-расписания, которые автогенерируют набор задач в БД.",
+  "difficulty": "championship",
+  "relatedModule": "csharp-maui",
+  "relatedLessons": [],
+  "timeLimitMinutes": 300,
+  "sections": [
+    {
+      "id": "1",
+      "title": "Подготовка БД",
+      "body": "Создайте БД `Session3` на **MS SQL Server** и импортируйте `Session3-MsSQL.sql`. Структуру БД менять нельзя."
+    },
+    {
+      "id": "2",
+      "title": "Экран PM List (стартовый)",
+      "body": "Список активных PM-задач. Колонки: Asset Name, Asset SN, Task Name, Schedule Type, и либо ScheduleDate, либо ScheduleKilometer (в зависимости от типа)."
+    },
+    {
+      "id": "3",
+      "title": "Поле Active Date",
+      "body": "Сверху экрана. По умолчанию — текущая системная дата. Изменение даты **немедленно обновляет** список задач."
+    },
+    {
+      "id": "4",
+      "title": "Логика определения активных задач",
+      "body": "Отображаются два типа:\n\n- **Time-based** (есть `ScheduleDate`):\n  - Overdue: `ScheduleDate` < Active Date\n  - Due today: `ScheduleDate` = Active Date\n  - Due in next 4 days: Active Date+1 ≤ `ScheduleDate` ≤ Active Date+4\n- **Milestone-based** (есть `ScheduleKilometer`): активна, когда последнее показание одометра актива (`AssetOdometers.OdometerAmount`) **≥** `ScheduleKilometer`."
+    },
+    {
+      "id": "5",
+      "title": "Сортировка",
+      "body": "Строгий порядок:\n\n1. Unprocessed milestone-based\n2. Unprocessed overdue time-based\n3. Unprocessed due-today time-based\n4. Unprocessed next-4-days time-based\n5. Все processed (`TaskDone = true`) — в самом низу"
+    },
+    {
+      "id": "6",
+      "title": "Цветовое кодирование и легенда",
+      "body": "| Категория | Unprocessed | Processed |\n|---|---|---|\n| Milestone-based | Black | Gray |\n| Overdue time-based | Red | Orange |\n| Due today time-based | Black | Green |\n| Next 4 days time-based | Purple | Black |\n\nНа экране **обязательна легенда** с объяснением цветов."
+    },
+    {
+      "id": "7",
+      "title": "Чекбокс TaskDone",
+      "body": "В каждой строке — чекбокс, отражающий `TaskDone`. Нажатие сохраняет изменение в БД **немедленно** и обновляет список без навигации."
+    },
+    {
+      "id": "8",
+      "title": "Фильтры и FAB",
+      "body": "Внизу — два dropdown-фильтра: Asset Name (из `Assets`), Task Name (из `Tasks`). Изменение любого фильтра сразу обновляет список. Кнопка `Clear Filter` сбрасывает оба.\n\nКнопка FAB `+` зафиксирована в правом нижнем углу и **не прокручивается** вместе со списком."
+    },
+    {
+      "id": "9",
+      "title": "Форма создания PM-задачи",
+      "body": "Открывается по FAB. Поля:\n\n- **Task Name** — dropdown из `Tasks`.\n- **Asset Name** — dropdown из `Assets` + `Add to list`; можно добавить несколько активов, каждый со значком `✕` для удаления.\n- **Schedule Model** — dropdown из `PMScheduleModels`.\n- **Динамические параметры** — зависят от выбранной модели (см. 9.1).\n- **Start Date / End Date** — только для time-based моделей.",
+      "children": [
+        {
+          "id": "9.1",
+          "title": "Модели расписания и параметры",
+          "body": "| Модель | Тип | Параметры |\n|---|---|---|\n| Daily | Time-based | Интервал в днях (напр. каждые 12 дней) |\n| Weekly | Time-based | День недели + интервал в неделях |\n| Monthly | Time-based | День месяца + интервал в месяцах |\n| Every X Kilometer | Milestone-based | Start km + End km + Interval km |\n\nПараметры должны **динамически** показываться/скрываться в зависимости от выбранной модели."
+        },
+        {
+          "id": "9.2",
+          "title": "Валидация создания",
+          "body": "- Хотя бы один актив в списке.\n- Task Name и Schedule Model обязательны.\n- Time-based: Start Date и End Date обязательны.\n- Milestone: Start km, End km, Interval km обязательны.\n- **Нельзя** создавать пересекающиеся km-диапазоны для одной связки Task + Asset."
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "title": "Генерация PMTasks при Submit",
+      "body": "На основе выбранной модели и параметров сгенерировать все строки `PMTasks` для каждого актива в списке, в пределах заданного диапазона дат/километража, и сохранить в БД. Вернуться на PM List и обновить его.\n\nНавигация: `Back` (сверху) и `Cancel` (снизу) возвращают без сохранения."
+    },
+    {
+      "id": "11",
+      "title": "Style Guide и UX",
+      "body": "Те же общие правила: осмысленные сообщения, скроллбары по содержимому, даты `YYYY-MM-DD`, модальность, красные `Delete`/`Cancel`."
+    }
+  ],
+  "attachments": [
+    {
+      "label": "Session3 — MS SQL Server dump",
+      "kind": "sql",
+      "source": { "format": "file", "path": "KazMunayGas/Session 3/Session3-MsSQL.sql" },
+      "description": "Скрипт создания БД `Session3` и seed-данных."
+    }
+  ],
+  "deliverables": [
+    {
+      "id": "android-app",
+      "label": "Android-приложение (.NET 10 MAUI)",
+      "kind": "app",
+      "spec": "APK, разворачивается на тестовом устройстве. Все экраны и фильтры работают; чекбокс TaskDone сохраняет мгновенно; форма создания корректно генерирует PMTasks."
+    },
+    {
+      "id": "web-api",
+      "label": "Web API слой",
+      "kind": "app",
+      "spec": "ASP.NET Core Web API с эндпоинтами для PM List, фильтров, TaskDone toggle и генерации PM-расписаний."
+    },
+    {
+      "id": "db-session3",
+      "label": "БД `Session3`",
+      "kind": "db-state",
+      "spec": "БД `Session3` развёрнута из скрипта, схема не модифицирована."
+    }
+  ],
+  "assessmentCriteria": [
+    { "id": "db-imported", "text": "БД `Session3` создана и SQL-скрипт импортирован корректно.", "tag": "бд" },
+    { "id": "pm-list-startup", "text": "PM List — стартовый экран.", "tag": "ui" },
+    { "id": "pm-list-columns", "text": "Каждая строка показывает Asset Name, Asset SN, Task Name, Schedule Type, ScheduleDate или ScheduleKilometer.", "tag": "ui" },
+    { "id": "active-date-default-today", "text": "`Active Date` по умолчанию равен текущей дате и обновляет список при изменении.", "tag": "active-date" },
+    { "id": "time-based-active-correct", "text": "Time-based активные задачи корректно показываются: overdue, due today, due in next 4 days.", "tag": "логика" },
+    { "id": "milestone-active-from-odometer", "text": "Milestone-based задачи корректно активируются из данных `AssetOdometers`.", "tag": "логика" },
+    { "id": "sort-order-correct", "text": "Сортировка соответствует спецификации (milestone → overdue → today → next 4 days → processed).", "tag": "сортировка" },
+    { "id": "task-done-immediate", "text": "Чекбокс `TaskDone` сохраняет в БД немедленно, список обновляется без навигации.", "tag": "interaction" },
+    { "id": "color-coding-correct", "text": "Цветовое кодирование соответствует спецификации для всех 4 категорий × 2 состояний.", "tag": "цвет" },
+    { "id": "color-legend-visible", "text": "Легенда цветов видна на экране.", "tag": "цвет" },
+    { "id": "filters-populated", "text": "Dropdown'ы фильтров Asset Name и Task Name наполнены из БД.", "tag": "фильтры" },
+    { "id": "filters-immediate", "text": "Изменение фильтра сразу обновляет список.", "tag": "фильтры" },
+    { "id": "clear-filter-resets", "text": "`Clear Filter` сбрасывает оба dropdown'а и показывает все активные задачи.", "tag": "фильтры" },
+    { "id": "fab-fixed", "text": "FAB `+` зафиксирован в правом нижнем углу при прокрутке.", "tag": "ui" },
+    { "id": "create-form-fields", "text": "Форма создания содержит Task Name, Asset list, Schedule Model, динамические параметры, Start/End Date.", "tag": "create" },
+    { "id": "dynamic-params", "text": "Динамические параметры правильно показываются для выбранной Schedule Model.", "tag": "create" },
+    { "id": "daily-generation", "text": "Daily модель принимает интервал в днях и генерирует корректные повторения в диапазоне дат.", "tag": "generation" },
+    { "id": "weekly-generation", "text": "Weekly модель принимает день недели + интервал недель, генерирует корректно.", "tag": "generation" },
+    { "id": "monthly-generation", "text": "Monthly модель принимает день месяца + интервал месяцев, генерирует корректно.", "tag": "generation" },
+    { "id": "km-generation", "text": "Every X Kilometer модель принимает start/end/interval, генерирует корректные milestones.", "tag": "generation" },
+    { "id": "overlap-validation", "text": "Валидация пересекающихся km-диапазонов работает корректно.", "tag": "валидация" },
+    { "id": "multi-asset", "text": "В форме создания можно добавить и удалить несколько активов.", "tag": "create" },
+    { "id": "submit-persists", "text": "Submit сохраняет все сгенерированные `PMTasks` в БД и обновляет PM List.", "tag": "save" },
+    { "id": "back-cancel-no-save", "text": "Back и Cancel возвращают без сохранения.", "tag": "save" },
+    { "id": "destructive-buttons-red", "text": "Кнопки `Delete` / `Cancel` красные.", "tag": "ux" },
+    { "id": "date-format-iso", "text": "Все даты в формате `YYYY-MM-DD`.", "tag": "формат" },
+    { "id": "style-guide-applied", "text": "KMG Style Guide применён консистентно.", "tag": "стиль" },
+    { "id": "all-functional-by-end", "text": "Все фичи полностью функциональны к концу сессии.", "tag": "полнота" }
+  ],
+  "sources": [
+    {
+      "label": "WSC2025 TP09 S3 — основной брифинг (RU)",
+      "kind": "pdf",
+      "source": { "format": "file", "path": "KazMunayGas/Session 3/WSC2025_TP09_S3_RU.pdf" }
+    },
+    {
+      "label": "Сессия 3 — дополнительный документ (RU)",
+      "kind": "pdf",
+      "source": { "format": "file", "path": "KazMunayGas/Session 3/Сессия 3.pdf" }
+    }
+  ],
+  "notes": "В seed-данных — 481 pre-generated PMTasks, что позволяет сразу проверить отображение, сортировку и цвета без необходимости создавать задачи вручную."
+}

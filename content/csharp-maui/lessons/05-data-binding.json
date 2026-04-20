@@ -1,0 +1,67 @@
+{
+  "id": "05-data-binding",
+  "moduleId": "csharp-maui",
+  "title": "Data Binding: связь UI и данных",
+  "summary": "Механизм привязки данных в MAUI: `BindingContext`, выражение `{Binding}`, режимы (`OneWay`, `TwoWay`, `OneTime`, `OneWayToSource`), `INotifyPropertyChanged`, `ObservableCollection`, конвертеры, `x:DataType` и compiled bindings. .NET 10 MAUI.",
+  "estimatedMinutes": 55,
+  "theory": {
+    "kind": "inline",
+    "value": "# Data Binding\n\n**Data binding** — механизм, по которому свойства UI-элемента автоматически синхронизируются со свойствами объекта-источника (обычно view-model). Вместо того чтобы писать `NameLabel.Text = user.Name`, мы один раз описываем привязку в XAML, и UI сам следит за изменениями.\n\nЭто **сердце MAUI**. Без binding'а code-behind превратится в портянку `control.Property = model.Field`. С binding'ом — UI декларативно отражает состояние, а модель не знает о UI.\n\n## BindingContext\n\nУ каждого элемента есть свойство `BindingContext` — объект-источник, откуда `{Binding}` берёт данные. По умолчанию `BindingContext` **наследуется вниз по дереву** от родителя к детям.\n\n```csharp\n// MainPage.xaml.cs\npublic MainPage()\n{\n    InitializeComponent();\n    BindingContext = new AssetViewModel { Name = \"Pump-102\", Status = \"Active\" };\n}\n```\n\n```xml\n<!-- MainPage.xaml -->\n<ContentPage ...>\n    <VerticalStackLayout>\n        <!-- Binding источник = AssetViewModel, наследовано от ContentPage -->\n        <Label Text=\"{Binding Name}\" />\n        <Label Text=\"{Binding Status}\" />\n    </VerticalStackLayout>\n</ContentPage>\n```\n\n## Синтаксис {Binding}\n\n```xml\n<Label Text=\"{Binding Name}\" />\n<Label Text=\"{Binding User.Name}\" />            <!-- вложенное свойство -->\n<Entry Text=\"{Binding AssetName, Mode=TwoWay}\" />\n<Label Text=\"{Binding Date, StringFormat='{0:yyyy-MM-dd}'}\" />\n<Label Text=\"{Binding Description, FallbackValue='—'}\" />\n```\n\nКлючевые параметры:\n\n- **`Path`** (по умолчанию первый аргумент) — имя свойства источника.\n- **`Mode`** — направление потока данных (см. ниже).\n- **`StringFormat`** — формат строки; `{0}` — значение.\n- **`Converter`** — конвертер типов (см. ниже).\n- **`FallbackValue`** — что показать, если значение `null`.\n- **`Source`** — явно задать источник (по умолчанию `BindingContext`).\n\n## Режимы привязки (Mode)\n\n| Режим               | Поток данных                           | Когда использовать                 |\n|---------------------|----------------------------------------|------------------------------------|\n| `OneWay` (default)  | источник → UI                          | `Label.Text`, вывод данных         |\n| `TwoWay`            | источник ↔ UI                          | `Entry.Text`, `Picker.SelectedItem` — пользователь меняет данные |\n| `OneTime`           | источник → UI **один раз** при загрузке| для неизменных справочников        |\n| `OneWayToSource`    | UI → источник                          | редко; например, ScrollView.Position пишем в модель |\n| `Default`           | решает сам элемент (у `Entry.Text` это `TwoWay`, у `Label.Text` — `OneWay`) | обычно можно не указывать |\n\nВ 90 % случаев либо опускай `Mode`, либо пиши `TwoWay` для полей ввода.\n\n## INotifyPropertyChanged\n\nЧтобы UI обновлялся при изменении данных, источник должен **уведомить** об изменениях. Это делает интерфейс `INotifyPropertyChanged`:\n\n```csharp\npublic class AssetViewModel : INotifyPropertyChanged\n{\n    private string _name = string.Empty;\n    public string Name\n    {\n        get => _name;\n        set\n        {\n            if (_name == value) return;\n            _name = value;\n            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Name)));\n        }\n    }\n\n    public event PropertyChangedEventHandler? PropertyChanged;\n}\n```\n\nПисать это руками утомительно, поэтому в уроке 6 мы перейдём на **CommunityToolkit.Mvvm** и атрибут `[ObservableProperty]`, который генерирует такой setter.\n\nЕсли свойство объявлено как обычное авто-свойство без `INotifyPropertyChanged` — binding сработает **один раз** при загрузке и больше не обновится. Это частый источник багов «UI не обновляется».\n\n## ObservableCollection\n\nДля коллекций есть готовый `ObservableCollection<T>` из `System.Collections.ObjectModel`. Он сам уведомляет UI о добавлении/удалении элементов — `CollectionView` и `Picker` подписываются автоматически.\n\n```csharp\npublic ObservableCollection<Asset> Assets { get; } = new();\n\n// UI обновится сам:\nAssets.Add(new Asset { Name = \"New\" });\nAssets.RemoveAt(0);\n```\n\n`List<T>` — **не** сработает: замена элементов не вызовет обновления. Используй `ObservableCollection` для всех списков, которые меняются во время работы.\n\n## Конвертеры (IValueConverter)\n\nКогда тип свойства источника не совпадает с типом свойства UI, нужен **конвертер**:\n\n```csharp\npublic class InverseBoolConverter : IValueConverter\n{\n    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)\n        => value is bool b ? !b : false;\n\n    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)\n        => value is bool b ? !b : false;\n}\n```\n\nРегистрируется в ресурсах и используется через `Converter={StaticResource ...}`:\n\n```xml\n<ContentPage.Resources>\n    <local:InverseBoolConverter x:Key=\"InverseBool\" />\n</ContentPage.Resources>\n\n<Button IsEnabled=\"{Binding IsBusy, Converter={StaticResource InverseBool}}\" />\n```\n\nГотовые конвертеры часто лежат в `CommunityToolkit.Maui.Converters`: `BoolToObjectConverter`, `IsNullConverter`, `StringToDateTimeConverter` и др. — проверь, прежде чем писать свой.\n\n## x:DataType и compiled bindings\n\nПо умолчанию `{Binding}` работает через **рефлексию**: в рантайме ищет свойство по имени. Это медленно и даёт ошибки только при запуске. MAUI умеет **compiled bindings** — привязки, проверяемые на этапе компиляции:\n\n```xml\n<ContentPage xmlns:vm=\"clr-namespace:KmgAssets.ViewModels\"\n             x:DataType=\"vm:AssetViewModel\">\n    <Label Text=\"{Binding Name}\" />       <!-- compile-time проверка, что Name существует -->\n</ContentPage>\n```\n\n`x:DataType` говорит компилятору XAML, какой тип ожидается в `BindingContext`. Ошибку опечатки (`{Binding Naem}`) увидишь сразу при билде, а не в рантайме. Всегда указывай `x:DataType`, если знаешь тип — это бесплатный тайпчек и прирост производительности.\n\n## Binding у элементов списка (RelativeSource)\n\nВнутри `CollectionView.ItemTemplate` `BindingContext` — это текущий элемент списка. Чтобы привязаться к view-model страницы (например, к команде удаления), используем `RelativeSource`:\n\n```xml\n<CollectionView ItemsSource=\"{Binding Assets}\" x:DataType=\"vm:AssetsPageVM\">\n    <CollectionView.ItemTemplate>\n        <DataTemplate x:DataType=\"model:Asset\">\n            <Grid>\n                <Label Text=\"{Binding Name}\" />\n                <Button Text=\"Удалить\"\n                        Command=\"{Binding Source={RelativeSource AncestorType={x:Type vm:AssetsPageVM}}, Path=DeleteCommand}\"\n                        CommandParameter=\"{Binding .}\" />\n            </Grid>\n        </DataTemplate>\n    </CollectionView.ItemTemplate>\n</CollectionView>\n```\n\n`CommandParameter=\"{Binding .}\"` передаёт сам элемент списка в команду.\n\n## Что запомнить\n\n- `BindingContext` — источник данных; наследуется вниз по дереву.\n- `{Binding Path, Mode=TwoWay, StringFormat=..., Converter=...}` — полный синтаксис.\n- Для обновлений — `INotifyPropertyChanged` на источнике, `ObservableCollection` для списков.\n- `x:DataType` + compiled bindings = compile-time проверка и скорость. Включай всегда, когда знаешь тип.\n- В урок 6 перейдём на `CommunityToolkit.Mvvm`, который снимает boilerplate `INotifyPropertyChanged`."
+  },
+  "practice": [
+    {
+      "id": "first-binding",
+      "title": "Подключить view-model к странице",
+      "goal": "Собрать пару «XAML — view-model» с двусторонней привязкой и живым обновлением UI.",
+      "steps": [
+        {
+          "id": "vm-with-inpc",
+          "instruction": "Создай класс `AssetViewModel` со свойствами `Name` (string) и `IsActive` (bool). Реализуй `INotifyPropertyChanged`, уведомляй об изменениях в setter'ах.",
+          "code": {
+            "language": "csharp",
+            "full": "using System.ComponentModel;\nusing System.Runtime.CompilerServices;\n\nnamespace KmgAssets.ViewModels;\n\npublic class AssetViewModel : INotifyPropertyChanged\n{\n    private string _name = string.Empty;\n    public string Name\n    {\n        get => _name;\n        set => SetField(ref _name, value);\n    }\n\n    private bool _isActive = true;\n    public bool IsActive\n    {\n        get => _isActive;\n        set => SetField(ref _isActive, value);\n    }\n\n    public event PropertyChangedEventHandler? PropertyChanged;\n\n    private void SetField<T>(ref T field, T value, [CallerMemberName] string? name = null)\n    {\n        if (EqualityComparer<T>.Default.Equals(field, value)) return;\n        field = value;\n        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));\n    }\n}",
+            "explanation": "Хелпер `SetField` проверяет, изменилось ли значение (иначе лишние уведомления и бесконечные циклы), пишет новое значение и посылает событие. `[CallerMemberName]` автоматически подставит имя свойства — не надо писать `nameof(Name)` вручную."
+          },
+          "hints": [
+            "В уроке 6 этот же класс станет однострочником с `[ObservableProperty]` из CommunityToolkit.Mvvm.",
+            "Без `INotifyPropertyChanged` UI обновится только при первой загрузке и больше никогда."
+          ]
+        },
+        {
+          "id": "bind-context",
+          "instruction": "В `MainPage.xaml.cs` установи `BindingContext` в экземпляр view-model. В XAML привяжи `Entry.Text` к `Name` в режиме TwoWay и `Switch.IsToggled` к `IsActive`.",
+          "code": {
+            "language": "xaml",
+            "full": "<!-- MainPage.xaml -->\n<ContentPage xmlns=\"http://schemas.microsoft.com/dotnet/2021/maui\"\n             xmlns:x=\"http://schemas.microsoft.com/winfx/2009/xaml\"\n             xmlns:vm=\"clr-namespace:KmgAssets.ViewModels\"\n             x:Class=\"KmgAssets.MainPage\"\n             x:DataType=\"vm:AssetViewModel\">\n    <VerticalStackLayout Padding=\"24\" Spacing=\"12\">\n        <Entry Placeholder=\"Asset Name\"\n               Text=\"{Binding Name, Mode=TwoWay}\" />\n\n        <Switch IsToggled=\"{Binding IsActive, Mode=TwoWay}\" />\n\n        <Label Text=\"{Binding Name, StringFormat='Актив: {0}'}\" FontSize=\"18\" />\n        <Label Text=\"{Binding IsActive, StringFormat='Активен: {0}'}\" />\n    </VerticalStackLayout>\n</ContentPage>\n\n<!-- MainPage.xaml.cs -->\n<!--\npublic MainPage()\n{\n    InitializeComponent();\n    BindingContext = new AssetViewModel { Name = \"Pump-102\" };\n}\n-->",
+            "explanation": "`x:DataType=\"vm:AssetViewModel\"` включает compiled bindings — компилятор проверит, что `Name` и `IsActive` реально есть в типе. Labels внизу показывают живое обновление: меняешь Entry — нижний Label обновляется мгновенно, потому что оба привязаны к `Name`."
+          },
+          "hints": [
+            "Если не работает — проверь, что `BindingContext` выставлен ДО или ПОСЛЕ `InitializeComponent()`, но точно не забыт.",
+            "Без `x:DataType` работать будет, но через медленную рефлексию и без compile-time проверки."
+          ]
+        },
+        {
+          "id": "observable-list",
+          "instruction": "Добавь в view-model `ObservableCollection<string> RecentAssets` и кнопку, которая добавляет в коллекцию текущее значение Name. Выведи коллекцию в `CollectionView`.",
+          "code": {
+            "language": "csharp",
+            "full": "// AssetViewModel.cs — добавить\nusing System.Collections.ObjectModel;\n\npublic ObservableCollection<string> RecentAssets { get; } = new();\n\npublic void AddCurrent()\n{\n    if (!string.IsNullOrWhiteSpace(Name))\n        RecentAssets.Add(Name);\n}\n\n// MainPage.xaml — добавить\n// <Button Text=\"Добавить в историю\" Clicked=\"OnAddClicked\" />\n// <CollectionView ItemsSource=\"{Binding RecentAssets}\">\n//     <CollectionView.ItemTemplate>\n//         <DataTemplate x:DataType=\"x:String\">\n//             <Label Text=\"{Binding .}\" Padding=\"8,4\" />\n//         </DataTemplate>\n//     </CollectionView.ItemTemplate>\n// </CollectionView>\n\n// MainPage.xaml.cs — добавить\nprivate void OnAddClicked(object sender, EventArgs e)\n    => (BindingContext as AssetViewModel)?.AddCurrent();",
+            "explanation": "`ObservableCollection` сама шлёт событие `CollectionChanged`, `CollectionView` на него подписан — поэтому список обновляется без ручных вызовов. В `DataTemplate` каждый элемент — строка, `{Binding .}` означает «текущий элемент целиком»."
+          },
+          "hints": [
+            "Заменил на `List<string>` и сломалось? Это ожидаемо: `List` не уведомляет об изменениях.",
+            "В уроке 7 мы разберём `CollectionView` детально — DataTemplate, Selection, контекстные действия."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": [
+    "task-session-1-kmg-assets",
+    "task-session-2-emergency-maintenance",
+    "task-session-3-preventive-maintenance",
+    "task-session-4-inventory-warehouse",
+    "task-session-5-inventory-dashboard"
+  ],
+  "prerequisites": ["02-xaml-fundamentals", "04-controls-catalog"]
+}

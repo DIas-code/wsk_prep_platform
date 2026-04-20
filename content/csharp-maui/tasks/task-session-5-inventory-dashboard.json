@@ -1,0 +1,154 @@
+{
+  "id": "task-session-5-inventory-dashboard",
+  "title": "Session 5 — Inventory Dashboard & Material-Technical Asset Management",
+  "summary": "Desktop-приложение на .NET 10 с аналитическим дашбордом (3 таблицы + 2 графика) по расходам EM и формой подбора запчастей методом FIFO/LIFO/Minimum Cost для активных EM-заявок. Multi-language через XML-файлы.",
+  "overview": "Session 5 — desktop-приложение для менеджеров KMG. Два основных экрана:\n\n1. **Inventory Dashboard** — пять панелей аналитики по расходам emergency maintenance (3 таблицы + 2 графика).\n2. **Material-Technical Asset Management** — форма поиска запчастей и их распределения на активные EM-заявки по методу учёта (FIFO/LIFO/Minimum Cost).\n\nПлюс поддержка нескольких языков через XML-файлы в папке `languages/`.",
+  "difficulty": "championship",
+  "relatedModule": "csharp-maui",
+  "relatedLessons": [],
+  "timeLimitMinutes": 300,
+  "sections": [
+    {
+      "id": "1",
+      "title": "Подготовка БД",
+      "body": "Создайте БД `Session5` на **MS SQL Server** и импортируйте `Session5-MsSQL.sql`. Схему **не менять**."
+    },
+    {
+      "id": "2",
+      "title": "Inventory Dashboard — стартовый экран",
+      "body": "На одном экране — все 5 панелей. Внизу — кнопка `Inventory Control`, открывающая форму Material-Technical Asset Management. Также внизу — dropdown выбора языка."
+    },
+    {
+      "id": "3",
+      "title": "Panel 1 — EM Spending by Department",
+      "body": "Помесячные расходы департаментов на EM. Учитываются **только завершённые** заявки (есть и `EMStartDate`, и `EMEndDate`). Показываются только месяцы с хотя бы одной завершённой EM.\n\nСамое **высокое** значение месячных расходов подсвечено **красным**, самое низкое ненулевое — **зелёным**. Если highest == lowest — красным."
+    },
+    {
+      "id": "4",
+      "title": "Panel 2 — Monthly Report for Most-Used Parts",
+      "body": "Две строки на каждый месяц:\n\n- **Highest Cost** — запчасти с наибольшей стоимостью в этом месяце.\n- **Most Number** — запчасти, использованные чаще всего (по количеству).\n\nТолько месяцы с завершёнными EM. Несколько одинаково максимальных — через запятую."
+    },
+    {
+      "id": "5",
+      "title": "Panel 3 — Monthly Report of Costly Assets",
+      "body": "Актив(ы) с наибольшей суммой стоимости запчастей за месяц (по завершённым EM). Под именем актива — имя департамента. Только месяцы с завершёнными EM. Ничья — через запятую."
+    },
+    {
+      "id": "6",
+      "title": "Panel 4 — Department Spending Ratio (Pie)",
+      "body": "Pie chart, сравнивающий суммарные EM-расходы по департаментам. Каждый департамент — свой цвет, обязательна легенда."
+    },
+    {
+      "id": "7",
+      "title": "Panel 5 — Monthly Department Spending (Bar)",
+      "body": "Сгруппированный/stacked bar chart помесячных EM-расходов по департаментам. По оси X — месяцы, внутри каждого столбца — бары по департаментам. Подписанные оси, легенда с цветами."
+    },
+    {
+      "id": "8",
+      "title": "Поддержка нескольких языков",
+      "body": "Dropdown выбора языка внизу Dashboard-формы. При старте приложение сканирует папку `languages/` на XML-файлы.\n\n- `default.xml` — fallback для ключей, отсутствующих в выбранном языке.\n- Последний выбранный язык **запоминается** между запусками.\n- XML-файлы с ошибками парсинга тихо исключаются из списка без падения приложения."
+    },
+    {
+      "id": "9",
+      "title": "Material-Technical Asset Management",
+      "body": "Форма подбора запчастей на активные EM-заявки.",
+      "children": [
+        {
+          "id": "9.1",
+          "title": "Шапка формы",
+          "body": "- Warehouse (dropdown)\n- Asset Name / EM Number (dropdown) — **только активы с активными EM** (есть `EMStartDate`, нет `EMEndDate`); если у актива несколько открытых EM — он появляется несколько раз.\n- Date (date picker)"
+        },
+        {
+          "id": "9.2",
+          "title": "Секция Search for Parts",
+          "body": "- Warehouse (dropdown)\n- Part Name (dropdown) — только запчасти, доступные на выбранном складе **на выбранную дату**\n- Amount (числовой ввод)\n- Allocation Method (dropdown): **FIFO** (первый пришёл — первый ушёл), **LIFO** (последний пришёл — первый ушёл), **Minimum Cost** (сначала batch с минимальной ценой)\n- Кнопка `Remove` — ищет в БД и наполняет таблицу Allocated Parts подходящими строками."
+        },
+        {
+          "id": "9.3",
+          "title": "Секция Allocated Parts",
+          "body": "Колонки: Part Name, Batch Number, Unit Price, Amount.\n\nКнопка `Assign to EM` — переносит все строки в Assigned Parts. Пользователь может выполнить несколько поисков и назначений."
+        },
+        {
+          "id": "9.4",
+          "title": "Секция Assigned Parts",
+          "body": "Колонки: Part Name, Batch Number, Unit Price, Amount. Строки можно удалять до submit'а. Кнопка `Submit` сохраняет все назначенные запчасти в БД.\n\nПравила: хотя бы одна запчасть для submit; количество материала не меньше 0; учёт по ключу (Part Name + Batch Number)."
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "title": "Style Guide и UX",
+      "body": "Те же общие правила: осмысленные сообщения, скроллбары, даты `YYYY-MM-DD`, модальность, красные `Delete`/`Cancel`, легенды. Цвета в графиках могут отличаться от Style Guide."
+    }
+  ],
+  "attachments": [
+    {
+      "label": "Session5 — MS SQL Server dump",
+      "kind": "sql",
+      "source": { "format": "file", "path": "KazMunayGas/Session 5/Session5-MsSQL.sql" },
+      "description": "Скрипт создания БД `Session5` и seed-данных."
+    },
+    {
+      "label": "default.xml — базовый языковой файл",
+      "kind": "xml",
+      "source": { "format": "file", "path": "KazMunayGas/Session 5/default.xml" },
+      "description": "Английские тексты интерфейса. Fallback для отсутствующих ключей в других языках."
+    }
+  ],
+  "deliverables": [
+    {
+      "id": "desktop-app",
+      "label": "Desktop-приложение (.NET 10)",
+      "kind": "app",
+      "spec": "Работающие Inventory Dashboard (5 панелей) и Material-Technical Asset Management. Multi-language с сохранением выбора между запусками."
+    },
+    {
+      "id": "languages-folder",
+      "label": "Папка `languages/` с XML-файлами",
+      "kind": "other",
+      "spec": "`default.xml` + хотя бы один дополнительный язык. Файлы с ошибками парсинга не ломают приложение."
+    },
+    {
+      "id": "db-session5",
+      "label": "БД `Session5`",
+      "kind": "db-state",
+      "spec": "БД `Session5` развёрнута из скрипта, схема не модифицирована."
+    }
+  ],
+  "assessmentCriteria": [
+    { "id": "db-imported", "text": "БД `Session5` создана и SQL-скрипт импортирован без ошибок.", "tag": "бд" },
+    { "id": "dashboard-five-panels", "text": "Inventory Dashboard показывает все 5 панелей с корректными данными.", "tag": "dashboard" },
+    { "id": "spending-highlights", "text": "Highest/lowest monthly expense корректно подсвечены красным/зелёным.", "tag": "panel1" },
+    { "id": "most-used-parts", "text": "`Most-Used Parts` корректно показывает Highest Cost и Most Number по месяцам.", "tag": "panel2" },
+    { "id": "costly-assets", "text": "`Costly Assets` корректно суммирует стоимость запчастей по активу за месяц и показывает департамент.", "tag": "panel3" },
+    { "id": "pie-chart-correct", "text": "Pie chart корректно отражает доли расходов департаментов с легендой.", "tag": "panel4" },
+    { "id": "bar-chart-correct", "text": "Bar chart корректно показывает помесячные расходы департаментов с осями и легендой.", "tag": "panel5" },
+    { "id": "language-dropdown", "text": "Dropdown языков наполняется из XML-файлов папки `languages/`.", "tag": "i18n" },
+    { "id": "default-fallback", "text": "`default.xml` используется как fallback для отсутствующих ключей.", "tag": "i18n" },
+    { "id": "language-persistence", "text": "Последний выбранный язык сохраняется и восстанавливается между запусками.", "tag": "i18n" },
+    { "id": "broken-xml-ignored", "text": "XML-файлы с ошибками исключаются из списка без падения приложения.", "tag": "i18n" },
+    { "id": "asset-only-active-em", "text": "Форма Asset Management показывает только активы с открытыми EM.", "tag": "form" },
+    { "id": "parts-filtered-warehouse-date", "text": "Dropdown запчастей фильтруется по выбранному складу и дате.", "tag": "form" },
+    { "id": "allocation-methods", "text": "FIFO, LIFO и Minimum Cost дают корректный порядок batch-ов.", "tag": "allocation" },
+    { "id": "allocate-assign-flow", "text": "`Remove` → `Assign to EM` корректно перемещает строки между таблицами.", "tag": "form" },
+    { "id": "submit-persists", "text": "Submit сохраняет данные в БД; минимум одна запчасть обязательна.", "tag": "save" },
+    { "id": "destructive-buttons-red", "text": "Кнопки `Delete` / `Cancel` красные.", "tag": "ux" },
+    { "id": "modal-forms", "text": "Модальное поведение соблюдено.", "tag": "ux" },
+    { "id": "date-format-iso", "text": "Даты в формате `YYYY-MM-DD`.", "tag": "формат" },
+    { "id": "style-guide-applied", "text": "KMG Style Guide применён консистентно.", "tag": "стиль" },
+    { "id": "all-functional-by-end", "text": "Все фичи полностью функциональны к концу сессии.", "tag": "полнота" }
+  ],
+  "sources": [
+    {
+      "label": "WSC2025 TP09 S5 — основной брифинг (RU)",
+      "kind": "pdf",
+      "source": { "format": "file", "path": "KazMunayGas/Session 5/WSC2025_TP09_S5_RU.pdf" }
+    },
+    {
+      "label": "Сессия 5 — дополнительный документ (RU)",
+      "kind": "pdf",
+      "source": { "format": "file", "path": "KazMunayGas/Session 5/Сессия 5.pdf" }
+    }
+  ],
+  "notes": "Самая насыщенная сессия по требованиям: аналитика + графики + i18n + FIFO/LIFO/Min Cost. Для графиков подойдут LiveCharts2 или OxyPlot. XML-парсинг — `System.Xml.Linq`."
+}

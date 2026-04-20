@@ -1,0 +1,67 @@
+{
+  "id": "02-xaml-fundamentals",
+  "moduleId": "csharp-maui",
+  "title": "XAML: основы разметки",
+  "summary": "XAML как декларативный способ описать UI. Пространства имён, элементы и атрибуты, property element syntax, `x:Name`, вложенные свойства, markup extensions (`{Binding}`, `{StaticResource}`), связь XAML и code-behind. .NET 10 MAUI.",
+  "estimatedMinutes": 45,
+  "theory": {
+    "kind": "inline",
+    "value": "# XAML\n\n**XAML** (Extensible Application Markup Language) — это XML-диалект от Microsoft для описания UI. В MAUI каждая страница обычно представлена парой `Page.xaml` + `Page.xaml.cs` — первая описывает, как выглядит UI, вторая (code-behind) — что он делает на событиях.\n\nФилософия XAML: **декларативно** описать дерево элементов (`ContentPage > VerticalStackLayout > Label, Button`) вместо того, чтобы писать процедурный код создания этих объектов. Это похоже на HTML, но за каждым тегом стоит реальный .NET-класс.\n\n## Минимальная страница\n\n```xml\n<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n<ContentPage xmlns=\"http://schemas.microsoft.com/dotnet/2021/maui\"\n             xmlns:x=\"http://schemas.microsoft.com/winfx/2009/xaml\"\n             x:Class=\"KmgAssets.MainPage\">\n    <VerticalStackLayout Padding=\"24\" Spacing=\"12\">\n        <Label Text=\"Hello, MAUI\" FontSize=\"24\" />\n        <Button Text=\"Click me\" Clicked=\"OnClicked\" />\n    </VerticalStackLayout>\n</ContentPage>\n```\n\n### Пространства имён (xmlns)\n\n- **`xmlns=\"http://schemas.microsoft.com/dotnet/2021/maui\"`** — дефолтный namespace. Все элементы без префикса (`ContentPage`, `Label`, `Button`) берутся отсюда — это классы MAUI.\n- **`xmlns:x=\"http://schemas.microsoft.com/winfx/2009/xaml\"`** — XAML-специфичные конструкции: `x:Class`, `x:Name`, `x:DataType`.\n- **`x:Class=\"KmgAssets.MainPage\"`** — говорит, что этот XAML-файл соответствует C#-классу `MainPage` в namespace `KmgAssets`.\n\nСобственные namespace'ы добавляются так: `xmlns:local=\"clr-namespace:KmgAssets.Views\"` — теперь элементы из `KmgAssets.Views` можно писать как `<local:MyCustomControl />`.\n\n## Элементы и атрибуты\n\nТег XAML = экземпляр класса. Атрибуты = установка свойств:\n\n```xml\n<Label Text=\"Hello\" FontSize=\"24\" TextColor=\"Red\" />\n```\n\nЭквивалент в C#:\n\n```csharp\nvar label = new Label { Text = \"Hello\", FontSize = 24, TextColor = Colors.Red };\n```\n\n### Property element syntax\n\nЕсли значение свойства — сложный объект или коллекция, используется **property element syntax**:\n\n```xml\n<Button Text=\"Click me\">\n    <Button.Background>\n        <LinearGradientBrush>\n            <GradientStop Color=\"Red\" Offset=\"0\" />\n            <GradientStop Color=\"Blue\" Offset=\"1\" />\n        </LinearGradientBrush>\n    </Button.Background>\n</Button>\n```\n\nЭлемент `<Button.Background>` — это не отдельный объект, а способ записать свойство `Background` типа `Brush`. Работает тот же принцип для любого свойства-объекта.\n\n### Content property\n\nУ многих контейнеров есть **content property** — свойство, которое принимает дочерние элементы без оборачивания. У `ContentPage` это `Content`, у `VerticalStackLayout` — `Children`. Поэтому вместо:\n\n```xml\n<ContentPage>\n    <ContentPage.Content>\n        <VerticalStackLayout>\n            <VerticalStackLayout.Children>\n                <Label />\n            </VerticalStackLayout.Children>\n        </VerticalStackLayout>\n    </ContentPage.Content>\n</ContentPage>\n```\n\n...пишут просто:\n\n```xml\n<ContentPage>\n    <VerticalStackLayout>\n        <Label />\n    </VerticalStackLayout>\n</ContentPage>\n```\n\n## x:Name и связь с code-behind\n\n`x:Name` даёт элементу имя, по которому к нему можно обращаться из code-behind:\n\n```xml\n<Label x:Name=\"GreetingLabel\" Text=\"Hi\" />\n```\n\n```csharp\nGreetingLabel.Text = \"Обновлено!\";\n```\n\nМожно подписаться на событие прямо в XAML: `Clicked=\"OnClicked\"` вызовет метод `OnClicked` из code-behind. Сигнатура метода должна совпадать с делегатом события — обычно `(object sender, EventArgs e)`.\n\n**Но** прямой доступ из code-behind — это антипаттерн в больших приложениях. Данные обычно текут через **data binding** (урок 5) и **MVVM** (урок 6). `x:Name` оставляют для редких случаев, когда по-другому никак.\n\n## Markup extensions\n\nВыражения в фигурных скобках — это **markup extensions**, вычисляемые при загрузке XAML:\n\n```xml\n<Label Text=\"{Binding UserName}\" />\n<Button Background=\"{StaticResource PrimaryBrush}\" />\n<Entry Placeholder=\"{x:Static local:Strings.SearchHint}\" />\n```\n\n- `{Binding …}` — привязка к свойству `BindingContext` (урок 5).\n- `{StaticResource key}` — получает ресурс по ключу из словаря ресурсов (`App.xaml` или локально на странице).\n- `{x:Static …}` — значение статического свойства/поля из C#-кода.\n\nMarkup extensions — это **НЕ** строки. Написать `Text=\"{Binding UserName}\"` ≠ `Text=\"{Binding UserName}-suffix\"` (последнее уже не валидный markup).\n\n## Комментарии и аккуратность\n\nКомментарии в XAML — стандартные XML: `<!-- это комментарий -->`. Многие IDE хорошо форматируют XAML автоматически; пользуйся этим, особенно в сложных Grid'ах.\n\n## Что запомнить\n\n- XAML описывает дерево UI-объектов декларативно. Теги — классы, атрибуты — свойства.\n- `x:Class` связывает XAML с C#-классом, `x:Name` — даёт элементу имя.\n- Для сложных значений — property element syntax (`<Element.Property>…</Element.Property>`).\n- `{Binding}`, `{StaticResource}`, `{x:Static}` — markup extensions, вычисляются при загрузке."
+  },
+  "practice": [
+    {
+      "id": "xaml-basics",
+      "title": "Собрать первую страницу",
+      "goal": "Описать экран на XAML, подключить обработчик из code-behind, использовать markup extension.",
+      "steps": [
+        {
+          "id": "declarative-layout",
+          "instruction": "В `MainPage.xaml` замени содержимое на `VerticalStackLayout` c одним `Label` и одной `Entry` (поле ввода). Дай Label-у `x:Name=\"Status\"`.",
+          "code": {
+            "language": "xaml",
+            "full": "<ContentPage xmlns=\"http://schemas.microsoft.com/dotnet/2021/maui\"\n             xmlns:x=\"http://schemas.microsoft.com/winfx/2009/xaml\"\n             x:Class=\"KmgAssets.MainPage\">\n    <VerticalStackLayout Padding=\"24\" Spacing=\"12\">\n        <Label x:Name=\"Status\" Text=\"Введите имя актива\" FontSize=\"20\" />\n        <Entry x:Name=\"AssetNameEntry\" Placeholder=\"Asset Name\" />\n        <Button Text=\"Подтвердить\" Clicked=\"OnConfirm\" />\n    </VerticalStackLayout>\n</ContentPage>",
+            "explanation": "`VerticalStackLayout` — контейнер, располагающий дочерние элементы сверху вниз. `Padding` задаёт отступ вокруг, `Spacing` — промежуток между детьми. `x:Name` делает Label/Entry доступными в code-behind."
+          },
+          "hints": [
+            "Обрати внимание на `x:Class` — он должен соответствовать полному имени C#-класса (namespace.ClassName).",
+            "IntelliSense в IDE подсказывает доступные свойства для каждого тега."
+          ]
+        },
+        {
+          "id": "code-behind-handler",
+          "instruction": "В `MainPage.xaml.cs` добавь обработчик `OnConfirm`, который читает текст из `AssetNameEntry` и пишет в `Status.Text` приветствие.",
+          "code": {
+            "language": "csharp",
+            "full": "private void OnConfirm(object sender, EventArgs e)\n{\n    var name = AssetNameEntry.Text;\n    Status.Text = string.IsNullOrWhiteSpace(name)\n        ? \"Введите имя\"\n        : $\"Актив: {name}\";\n}",
+            "explanation": "Сигнатура метода `(object sender, EventArgs e)` соответствует делегату события `Clicked`. Code-behind имеет прямой доступ к полям по `x:Name` — XAML-компилятор сгенерировал их под капотом."
+          },
+          "hints": [
+            "В production-коде этот же сценарий делают через data binding — мы увидим в уроке 5.",
+            "Если IDE подчёркивает `AssetNameEntry` как неизвестное имя — пересобери проект: генерация code-behind полей происходит при билде."
+          ]
+        },
+        {
+          "id": "static-resource",
+          "instruction": "Добавь в `App.xaml` цвет как ресурс с ключом `PrimaryBrush`, и подставь его в Button через `{StaticResource}`.",
+          "code": {
+            "language": "xaml",
+            "full": "<!-- App.xaml -->\n<Application.Resources>\n    <ResourceDictionary>\n        <Color x:Key=\"PrimaryColor\">#512BD4</Color>\n        <SolidColorBrush x:Key=\"PrimaryBrush\" Color=\"{StaticResource PrimaryColor}\" />\n    </ResourceDictionary>\n</Application.Resources>\n\n<!-- MainPage.xaml -->\n<Button Text=\"Подтвердить\"\n        Background=\"{StaticResource PrimaryBrush}\"\n        TextColor=\"White\"\n        Clicked=\"OnConfirm\" />",
+            "explanation": "`StaticResource` ищет ключ `PrimaryBrush` сначала в текущем XAML-файле, потом вверх по дереву, и в итоге — в `App.xaml`. Один ресурс — одно место изменения; меняем цвет в `App.xaml`, и все кнопки перекрашиваются."
+          },
+          "hints": [
+            "Разница `StaticResource` vs `DynamicResource`: первый резолвится один раз при загрузке, второй — каждый раз при изменении. Почти всегда нужен `StaticResource`.",
+            "Ресурсы — фундамент Style Guide в задачах KMG: все цвета из палитры кладутся в `App.xaml` и применяются через `{StaticResource}`."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": [
+    "task-session-1-kmg-assets",
+    "task-session-2-emergency-maintenance",
+    "task-session-3-preventive-maintenance",
+    "task-session-4-inventory-warehouse",
+    "task-session-5-inventory-dashboard"
+  ],
+  "prerequisites": ["01-intro-to-maui"]
+}

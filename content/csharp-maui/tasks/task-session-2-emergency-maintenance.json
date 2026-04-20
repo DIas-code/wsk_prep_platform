@@ -1,0 +1,122 @@
+{
+  "id": "task-session-2-emergency-maintenance",
+  "title": "Session 2 — Emergency Maintenance (Desktop)",
+  "summary": "Desktop-приложение на .NET 10 для управления заявками на аварийное обслуживание активов KMG. Две роли (Accountable Party / Maintenance Manager), авторизация, учёт запчастей, бизнес-правила по жизненному циклу заявки.",
+  "overview": "**KMG** требует внутреннюю систему управления обслуживанием активов. В этой сессии — **desktop-приложение** для **неплановых (emergency) заявок**. Две роли с разными экранами и правами:\n\n- **Accountable Party** (обычный сотрудник) — видит свои активы, создаёт новые EM-заявки.\n- **Maintenance Manager** (admin) — видит все открытые заявки, обрабатывает их, фиксирует запчасти.\n\nПлатформа desktop — на усмотрение разработчика (рекомендуется MAUI Windows или WPF). БД — `Session2`, MS SQL Server.",
+  "difficulty": "championship",
+  "relatedModule": "csharp-maui",
+  "relatedLessons": [],
+  "timeLimitMinutes": 300,
+  "sections": [
+    {
+      "id": "1",
+      "title": "Подготовка БД",
+      "body": "Создайте БД `Session2` на **MS SQL Server** (через SSMS) и импортируйте `Session2-MsSQL.sql`. Структуру БД менять нельзя."
+    },
+    {
+      "id": "2",
+      "title": "Форма входа",
+      "body": "Форма авторизации с полями Username + Password. Войти могут только сотрудники, у которых в `Employees` задан `Username`. После успешного входа — маршрутизация по роли:\n\n- `isAdmin = false / NULL` → экран Accountable Party\n- `isAdmin = true` → экран Maintenance Manager"
+    },
+    {
+      "id": "3",
+      "title": "Экран Accountable Party",
+      "body": "Список **только своих** активов. Колонки: Asset SN, Asset Name, Last Closed EM Date, Number of EMs.\n\n- **Last Closed EM** = `EMEndDate` последней закрытой заявки (`--` если таких нет).\n- **Number of EMs** = общее число EM-записей для актива (открытые + закрытые).\n- Активы с **открытыми** заявками (`EMEndDate IS NULL`) — визуально выделены, на экране обязательна **легенда**.\n- Кнопка `Send Emergency Maintenance Request` внизу — открывает форму новой заявки."
+    },
+    {
+      "id": "4",
+      "title": "Форма новой EM-заявки",
+      "body": "Открывается после выбора актива и клика по кнопке заявки. Поля:\n\n- Read-only: Asset SN, Asset Name, Department\n- Priority (dropdown из БД) — обязательно\n- Description of Emergency (text) — обязательно\n- Other Considerations (text)\n\n`Send Request` сохраняет в `EmergencyMaintenances` с `EMReportDate = сегодня`. `Cancel` возвращает без сохранения.\n\n**Правило**: новая заявка создаётся только если у актива **нет открытой** заявки (`EMEndDate IS NULL`)."
+    },
+    {
+      "id": "5",
+      "title": "Экран Maintenance Manager",
+      "body": "Список **всех открытых** заявок от всех сотрудников. Колонки: Asset SN, Asset Name, Report Date, Employee Full Name, Department.\n\nСортировка: сначала по Priority (Very High → High → General), затем по `EMReportDate` **от старых к новым**. Кнопка `Manage Request` открывает форму деталей."
+    },
+    {
+      "id": "6",
+      "title": "Форма обработки EM-заявки",
+      "body": "Менеджер просматривает и обновляет заявку.\n\n**Read-only**: Asset SN, Asset Name, Department, Registered On (`EMReportDate`).\n\n**Editable**: Start Date (`EMStartDate`), Completed On (`EMEndDate`), Technician Note (`EMTechnicianNote`).\n\n**Replacement Parts**: список запчастей, использованных при ремонте.\n\n- Part Name (dropdown из `Parts`)\n- Amount (положительное десятичное число)\n- `Add to list` — добавляет строку (Part Name, Amount, Remove)\n- Менеджер может не добавлять ни одной запчасти\n\n**Effective life warning**: если выбранная запчасть ранее использовалась **на этом же активе** и `EffectiveLife` ещё не истёк — вывести предупреждение.",
+      "children": [
+        {
+          "id": "6.1",
+          "title": "Бизнес-правила",
+          "body": "- `EMStartDate` ≥ `EMReportDate`.\n- `EMStartDate` обязательна перед Submit.\n- `EMEndDate` можно задать только если `EMTechnicianNote` уже заполнен.\n- После установки `EMEndDate` заявка **полностью заблокирована** для редактирования.\n- Part Amount — положительное десятичное число."
+        }
+      ]
+    },
+    {
+      "id": "7",
+      "title": "Style Guide и UX",
+      "body": "Общие правила, как в Session 1:\n\n- Осмысленные валидационные сообщения во всех модулях.\n- Скроллбары при переполнении, скрыты иначе.\n- Даты — ISO `YYYY-MM-DD`.\n- Модальность активной формы.\n- Кнопки `Delete` и `Cancel` — красные.\n- Легенда при цветовом кодировании."
+    }
+  ],
+  "attachments": [
+    {
+      "label": "Session2 — MS SQL Server dump",
+      "kind": "sql",
+      "source": { "format": "file", "path": "KazMunayGas/Session 2/Session2-MsSQL.sql" },
+      "description": "Скрипт создания БД `Session2` и seed-данных для MS SQL Server."
+    }
+  ],
+  "deliverables": [
+    {
+      "id": "desktop-app",
+      "label": "Desktop-приложение (.NET 10)",
+      "kind": "app",
+      "spec": "Работающее приложение с формой входа, экраном Accountable Party, экраном Maintenance Manager, формой новой EM и формой обработки."
+    },
+    {
+      "id": "db-session2",
+      "label": "БД `Session2`",
+      "kind": "db-state",
+      "spec": "БД `Session2` развёрнута из импортированного скрипта, схема не модифицирована."
+    }
+  ],
+  "assessmentCriteria": [
+    { "id": "db-imported", "text": "БД `Session2` создана и SQL-скрипт импортирован корректно.", "tag": "бд" },
+    { "id": "login-auth", "text": "Форма входа аутентифицирует по Username + Password из БД.", "tag": "auth" },
+    { "id": "login-only-with-username", "text": "Войти могут только сотрудники с установленным Username.", "tag": "auth" },
+    { "id": "role-routing", "text": "После входа корректная маршрутизация по роли (Accountable Party / Manager).", "tag": "auth" },
+    { "id": "ap-own-assets-only", "text": "Accountable Party видит только свои активы.", "tag": "ap" },
+    { "id": "ap-columns", "text": "Список активов отображает Asset SN, Asset Name, Last Closed EM, Number of EMs.", "tag": "ap" },
+    { "id": "ap-highlight-open", "text": "Активы с открытыми EM визуально выделены; легенда на экране присутствует.", "tag": "ap" },
+    { "id": "ap-last-closed-em", "text": "`Last Closed EM` — корректная дата или `--` если закрытых нет.", "tag": "ap" },
+    { "id": "ap-em-count", "text": "`Number of EMs` — корректное общее число заявок (открытых + закрытых).", "tag": "ap" },
+    { "id": "em-readonly-fields", "text": "Форма новой EM показывает Asset SN, Name, Department как read-only.", "tag": "em" },
+    { "id": "em-required-validation", "text": "Submit блокируется, если Priority или Description пустые.", "tag": "em" },
+    { "id": "em-no-duplicate-open", "text": "Новая EM заблокирована, если у актива уже есть открытая заявка.", "tag": "em" },
+    { "id": "em-report-date-today", "text": "Новая EM сохраняется с `EMReportDate = сегодня`.", "tag": "em" },
+    { "id": "mgr-only-open", "text": "Manager видит только открытые заявки.", "tag": "mgr" },
+    { "id": "mgr-sort-order", "text": "Открытые заявки отсортированы: Very High → High → General, затем от старых к новым.", "tag": "mgr" },
+    { "id": "mgr-details-readonly", "text": "Форма обработки показывает Asset SN, Name, Department, Registered On как read-only.", "tag": "mgr" },
+    { "id": "start-date-not-before-report", "text": "`EMStartDate` не может быть раньше `EMReportDate`.", "tag": "валидация" },
+    { "id": "start-date-required", "text": "`EMStartDate` обязательна перед Submit.", "tag": "валидация" },
+    { "id": "end-date-requires-note", "text": "`EMEndDate` можно установить только если `EMTechnicianNote` заполнен.", "tag": "валидация" },
+    { "id": "closed-em-locked", "text": "После установки `EMEndDate` заявка полностью заблокирована для редактирования.", "tag": "валидация" },
+    { "id": "parts-dropdown-from-db", "text": "Dropdown запчастей наполняется из `Parts`.", "tag": "parts" },
+    { "id": "amount-positive-decimal", "text": "Part Amount принимает только положительные десятичные числа.", "tag": "parts" },
+    { "id": "effective-life-warning", "text": "Показывается предупреждение при повторном использовании части в пределах её `EffectiveLife` на том же активе.", "tag": "parts" },
+    { "id": "parts-removable", "text": "Запчасти можно удалить из списка перед submit.", "tag": "parts" },
+    { "id": "submit-persists", "text": "Submit корректно сохраняет все изменения в БД.", "tag": "save" },
+    { "id": "cancel-no-save", "text": "Cancel возвращает без сохранения.", "tag": "save" },
+    { "id": "destructive-buttons-red", "text": "Кнопки `Delete` и `Cancel` — красные.", "tag": "ux" },
+    { "id": "modal-forms", "text": "Модальное поведение активной формы соблюдено.", "tag": "ux" },
+    { "id": "date-format-iso", "text": "Все даты в формате `YYYY-MM-DD`.", "tag": "формат" },
+    { "id": "style-guide-applied", "text": "KMG Style Guide применён консистентно.", "tag": "стиль" },
+    { "id": "all-functional-by-end", "text": "Все фичи полностью функциональны к концу сессии.", "tag": "полнота" }
+  ],
+  "sources": [
+    {
+      "label": "WSC2025 TP09 S2 — основной брифинг (RU)",
+      "kind": "pdf",
+      "source": { "format": "file", "path": "KazMunayGas/Session 2/WSC2025_TP09_S2_RU.pdf" }
+    },
+    {
+      "label": "Сессия 2 — дополнительный документ (RU)",
+      "kind": "pdf",
+      "source": { "format": "file", "path": "KazMunayGas/Session 2/Сессия 2.pdf" }
+    }
+  ],
+  "notes": "Championship-level desktop-задача. Учётные данные для тестирования: mohamed/1234 и josefa/1324 (обычные), lyn/1234 (admin)."
+}

@@ -1,0 +1,15 @@
+{
+  "id": "sql-databases",
+  "title": "SQL: MS SQL Server (SSMS)",
+  "description": "SELECT-запросы, фильтрация, агрегация и JOIN'ы в MS SQL Server через SSMS. Поддерживает БД-часть сессий 1–5 WorldSkills.",
+  "lessonOrder": [
+    "01-select-basics",
+    "02-where-filtering",
+    "03-order-top-paging",
+    "04-aggregates-group-having",
+    "05-joins"
+  ],
+  "taskIds": [],
+  "icon": "sql",
+  "accent": "#CC2927"
+}

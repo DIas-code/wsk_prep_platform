@@ -1,0 +1,78 @@
+{
+  "id": "02-where-filtering",
+  "moduleId": "sql-databases",
+  "title": "WHERE, операторы и NULL",
+  "summary": "Фильтрация строк через `WHERE`: операторы сравнения, `LIKE`, `IN`, `BETWEEN`, логические `AND/OR/NOT` с приоритетами, и главный подвох — семантика `NULL` (`IS NULL` vs `= NULL`). MS SQL Server, T-SQL.",
+  "estimatedMinutes": 45,
+  "theory": {
+    "kind": "inline",
+    "value": "# Фильтрация: WHERE\n\nВ прошлом уроке мы читали **все** строки таблицы. В реальной работе так почти никогда не делают — нам нужны *активы определённого департамента*, *заявки за последний месяц*, *сотрудники с заданным именем*. За это в SQL отвечает клауза `WHERE`:\n\n```sql\nSELECT Name, WarrantyDate\nFROM Assets\nWHERE AssetGroupID = 2;\n```\n\n`WHERE` стоит **после** `FROM` и **до** `SELECT` в порядке исполнения. Для каждой строки из `FROM` SQL Server проверяет условие в `WHERE` — если условие истинно, строка идёт дальше, если ложно или `NULL` — отбрасывается.\n\n## Операторы сравнения\n\n| Оператор | Значение |\n|---|---|\n| `=` | равно |\n| `<>` или `!=` | не равно |\n| `<`, `>`, `<=`, `>=` | сравнения |\n\nСтроки сравниваются по правилам collation текущей БД — в стандартной конфигурации **регистронезависимо**: `'Gold' = 'GOLD'` вернёт `TRUE`. Это отличается от Python/Java и часто удивляет.\n\nДаты сравниваются как обычные значения, но литерал даты надо записывать в одинарных кавычках в формате ISO:\n\n```sql\nWHERE WarrantyDate > '2026-01-01'\n```\n\n## LIKE — поиск по шаблону\n\n`LIKE` сравнивает строку с шаблоном:\n\n- `%` — любая последовательность символов (включая пустую)\n- `_` — ровно один любой символ\n\n```sql\nWHERE AssetName LIKE 'Volvo%'        -- начинается с 'Volvo'\nWHERE AssetName LIKE '%pump%'         -- содержит 'pump'\nWHERE AssetSN   LIKE '01/__/____'     -- SN вида 01/XX/XXXX\n```\n\nВ задачах Session 1 именно так устроен серверный поиск после ввода 2+ символов.\n\n## IN и BETWEEN\n\n`IN` — короткая запись для множества допустимых значений:\n\n```sql\nWHERE AssetGroupID IN (1, 3, 5)\n```\n\nЭто полностью эквивалентно `AssetGroupID = 1 OR AssetGroupID = 3 OR AssetGroupID = 5`, но читается в разы лучше.\n\n`BETWEEN` — диапазон **включительно с обеих сторон**:\n\n```sql\nWHERE WarrantyDate BETWEEN '2026-01-01' AND '2026-12-31'\n```\n\nТо есть `BETWEEN a AND b` = `>= a AND <= b`. Обрати внимание на границу: если ты фильтруешь datetime-значения, а не date, то `BETWEEN '2026-01-01' AND '2026-01-02'` **включит** `2026-01-02 00:00:00`, но исключит `2026-01-02 12:00:00`. Это классическая ловушка.\n\n## Логические операторы и приоритеты\n\nУсловия соединяются через `AND`, `OR` и `NOT`. Приоритеты: **`NOT` > `AND` > `OR`** — как и в других языках программирования. Это значит:\n\n```sql\nWHERE DepartmentID = 1 OR DepartmentID = 2 AND AssetGroupID = 3\n```\n\n...на самом деле означает `DepartmentID = 1 OR (DepartmentID = 2 AND AssetGroupID = 3)` — не то, что обычно хотят. **Всегда ставь скобки**, когда в фильтре есть и `AND`, и `OR`:\n\n```sql\nWHERE (DepartmentID = 1 OR DepartmentID = 2) AND AssetGroupID = 3\n```\n\n## NULL — тройная логика\n\nСамая болезненная тема. `NULL` в SQL **не значит «пусто»** — он значит **«неизвестно»**. Из этого вырастает три важных правила:\n\n1. **Любое сравнение с `NULL` через `=`, `<>`, `<`, `>` даёт `NULL`** (не `TRUE`, не `FALSE`):\n\n   ```sql\n   WHERE WarrantyDate = NULL    -- НИКОГДА не вернёт строк\n   WHERE WarrantyDate <> NULL   -- тоже не вернёт строк\n   ```\n\n2. Для проверки отсутствия значения используй **`IS NULL` / `IS NOT NULL`**:\n\n   ```sql\n   WHERE WarrantyDate IS NULL\n   WHERE EMEndDate   IS NOT NULL   -- \"заявка закрыта\"\n   ```\n\n3. **Строка отбрасывается, если `WHERE` вернул `NULL`** — ведёт себя как `FALSE`. Поэтому `WHERE WarrantyDate > '2026-01-01'` **не вернёт** строк с `WarrantyDate = NULL`, даже если ты хотел «всё, кроме истёкшей гарантии».\n\nЭти три правила — причина 90% багов начинающих. В задачах Session 2 проверка «открытая ли заявка» везде делается через `EMEndDate IS NULL` — именно потому, что `= NULL` не сработает.\n\n## Итого\n\n- `WHERE <условие>` фильтрует строки после `FROM`.\n- Для строк используй `LIKE` с `%` и `_`; для множеств — `IN`; для диапазонов — `BETWEEN`.\n- Расставляй скобки, когда смешиваешь `AND` и `OR`.\n- `NULL` проверяется только через `IS NULL` / `IS NOT NULL`."
+  },
+  "practice": [
+    {
+      "id": "basic-filters",
+      "title": "Базовая фильтрация на KMG-данных",
+      "goal": "Написать несколько `WHERE`-запросов на `Session1` и `Session2` и увидеть, как ведут себя `LIKE`, `IN`, `BETWEEN` и `NULL`.",
+      "steps": [
+        {
+          "id": "equality-and-comparison",
+          "instruction": "В БД `Session1` выбери `AssetName` и `WarrantyDate` только для тех активов, у которых `AssetGroupID = 1`, а гарантия ещё не истекла (дата > сегодняшней).",
+          "code": {
+            "language": "sql",
+            "full": "SELECT AssetName, WarrantyDate\nFROM Assets\nWHERE AssetGroupID = 1\n  AND WarrantyDate > GETDATE();",
+            "explanation": "`GETDATE()` возвращает текущую дату-время сервера. Обрати внимание: активы с `WarrantyDate IS NULL` сюда **не попадут**, потому что сравнение с `NULL` даёт `NULL`, а `WHERE` это трактует как «не прошло»."
+          },
+          "hints": [
+            "Если нужен только сегодняшний день (без времени), используй `CAST(GETDATE() AS DATE)`."
+          ]
+        },
+        {
+          "id": "like-in-between",
+          "instruction": "Найди в `Session1` все активы, у которых имя содержит подстроку `pump` (регистронезависимо), или SN начинается с `01/`, или `AssetGroupID` — один из значений 1, 3, 5.",
+          "code": {
+            "language": "sql",
+            "full": "SELECT AssetName, AssetSN, AssetGroupID\nFROM Assets\nWHERE AssetName LIKE '%pump%'\n   OR AssetSN   LIKE '01/%'\n   OR AssetGroupID IN (1, 3, 5);",
+            "explanation": "Три условия через `OR`. `LIKE '%pump%'` — подстрока; `LIKE '01/%'` — префикс. В `IN (…)` порядок значений роли не играет."
+          },
+          "hints": [
+            "Если надо искать подстроку регистрозависимо — добавь `COLLATE`, но по умолчанию collation БД обычно case-insensitive.",
+            "`AssetSN LIKE '01/%'` ровно эквивалентно `LEFT(AssetSN, 3) = '01/'`, но читается лучше."
+          ]
+        },
+        {
+          "id": "null-semantics",
+          "instruction": "Из `Session2` выведи список **открытых** EM-заявок (ещё не закрытых). Колонки: `ID`, `AssetID`, `EMReportDate`. Проверка на `NULL` через правильный оператор.",
+          "code": {
+            "language": "sql",
+            "full": "SELECT ID, AssetID, EMReportDate\nFROM EmergencyMaintenances\nWHERE EMEndDate IS NULL;",
+            "explanation": "Здесь `IS NULL` — единственный правильный способ проверить «заявка ещё открыта». Написал бы `EMEndDate = NULL` — получил бы **пустой результат**, потому что `= NULL` всегда даёт `NULL`, а `WHERE` это трактует как ложь."
+          },
+          "hints": [
+            "Попробуй ради проверки: `WHERE EMEndDate = NULL` — получишь 0 строк, хотя открытые заявки в БД есть.",
+            "В Session 2 это условие используется везде: «нет открытой заявки для актива», «сортировать открытые по приоритету» и т.д."
+          ]
+        },
+        {
+          "id": "and-or-parens",
+          "instruction": "Из `Session1` выбери активы, которые либо относятся к `DepartmentLocationID = 1` или `DepartmentLocationID = 2`, **и одновременно** имеют `AssetGroupID = 3`. Расставь скобки так, чтобы приоритет был однозначен.",
+          "code": {
+            "language": "sql",
+            "full": "SELECT AssetName, DepartmentLocationID, AssetGroupID\nFROM Assets\nWHERE (DepartmentLocationID = 1 OR DepartmentLocationID = 2)\n  AND AssetGroupID = 3;",
+            "explanation": "Без скобок `AND` связал бы сильнее, и запрос вернул бы «все `DepartmentLocationID = 1`, плюс `DepartmentLocationID = 2 AND AssetGroupID = 3`» — не то, что хотели. Скобки делают намерение явным, даже когда язык формально позволяет их опустить."
+          },
+          "hints": [
+            "Ту же мысль можно выразить через `IN`: `WHERE DepartmentLocationID IN (1, 2) AND AssetGroupID = 3` — короче и без скобок."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": [
+    "task-session-1-kmg-assets",
+    "task-session-2-emergency-maintenance",
+    "task-session-3-preventive-maintenance",
+    "task-session-4-inventory-warehouse",
+    "task-session-5-inventory-dashboard"
+  ],
+  "prerequisites": ["01-select-basics"]
+}
