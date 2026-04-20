@@ -7,3 +7,7 @@ dist/
 # Local source materials — original KMG session files (too bulky for git).
 # Only curated copies under content/<module>/tasks/<task-id>/ are tracked.
 KazMunayGas/
+
+# Playwright
+test-results/
+playwright-report/

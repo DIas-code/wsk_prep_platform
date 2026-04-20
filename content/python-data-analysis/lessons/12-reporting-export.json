@@ -1,0 +1,60 @@
+{
+  "id": "12-reporting-export",
+  "moduleId": "python-data-analysis",
+  "title": "Отчёты и экспорт: CSV, Excel, PDF",
+  "summary": "Экспорт результатов в CSV (`to_csv`), в Excel с несколькими листами (`ExcelWriter` + `openpyxl`), базовый PDF-отчёт (`matplotlib.backends.backend_pdf.PdfPages`), конвертация Jupyter-ноутбука в HTML. Python 3.13+, pandas, openpyxl, matplotlib последних стабильных версий.",
+  "estimatedMinutes": 30,
+  "theory": {
+    "kind": "inline",
+    "value": "# Экспорт результатов\n\nВся работа анализа заканчивается **файлами для отчёта**. В Session 6 deliverables — это конкретные `.csv`, `.xlsx` и `.pdf`, в строго заданных именах. Этот урок — о том, как их правильно сгенерировать.\n\n## CSV — `to_csv`\n\nСамый простой и самый частый формат:\n\n```python\ndf.to_csv('out.csv', index=False, encoding='utf-8-sig')\n```\n\n- `index=False` — без лишнего столбца индекса.\n- `encoding='utf-8-sig'` — Excel под Windows открывает файл с правильной кириллицей.\n- Для европейского формата: `sep=';'`, `decimal=','`.\n\nЕсли данные содержат запятые внутри строк — CSV всё равно работает: pandas поставит кавычки. Ничего вручную делать не надо.\n\n## Excel — один лист\n\n```python\ndf.to_excel('report.xlsx', index=False, sheet_name='Summary')\n```\n\nТребует `openpyxl` (`pip install openpyxl`).\n\n## Excel — несколько листов в один файл\n\nЧерез `ExcelWriter`:\n\n```python\nwith pd.ExcelWriter('Session6_Report.xlsx', engine='openpyxl') as writer:\n    partner_summary.to_excel(writer, sheet_name='Partners', index=False)\n    monthly.to_excel(writer, sheet_name='Monthly', index=False)\n    forecast_df.to_excel(writer, sheet_name='Forecast', index=False)\n    profile.to_excel(writer, sheet_name='Clusters')\n```\n\n`with` гарантирует, что файл будет корректно закрыт и записан. Если пишете без `with`, не забудьте `writer.close()`.\n\n### Форматирование ячеек\n\nДля отчётов Session 6 обычно достаточно «просто записать». Но если нужно, например, автошир колонок:\n\n```python\nwith pd.ExcelWriter('Session6_Report.xlsx', engine='openpyxl') as writer:\n    partner_summary.to_excel(writer, sheet_name='Partners', index=False)\n    ws = writer.sheets['Partners']\n    for col_cells in ws.columns:\n        length = max(len(str(cell.value or '')) for cell in col_cells)\n        ws.column_dimensions[col_cells[0].column_letter].width = length + 2\n```\n\nДля более сложных стилей (цвета, bold в шапке) есть `openpyxl.styles`, но не стоит увлекаться — читаемая таблица важнее красивого форматирования.\n\n## PDF — через matplotlib\n\nСамый простой способ собрать PDF-отчёт без внешних библиотек — `PdfPages`:\n\n```python\nfrom matplotlib.backends.backend_pdf import PdfPages\nimport matplotlib.pyplot as plt\n\nwith PdfPages('Session6_Report.pdf') as pdf:\n    # страница 1 — титульная\n    fig, ax = plt.subplots(figsize=(8.27, 11.69))  # A4 в дюймах\n    ax.axis('off')\n    ax.text(0.5, 0.7, 'KMG Session 6', ha='center', fontsize=24, weight='bold')\n    ax.text(0.5, 0.6, 'Data Analysis Report', ha='center', fontsize=16)\n    ax.text(0.5, 0.5, '2026-04', ha='center', fontsize=12)\n    pdf.savefig(fig)\n    plt.close(fig)\n\n    # страница 2 — график выручки\n    fig, ax = plt.subplots(figsize=(10, 5))\n    daily.plot(ax=ax, title='Daily revenue')\n    ax.set_ylabel('Amount, тенге')\n    fig.tight_layout()\n    pdf.savefig(fig)\n    plt.close(fig)\n\n    # страница 3 — прогноз\n    fig, ax = plt.subplots(figsize=(10, 5))\n    # ... код прогноза из урока 11 ...\n    pdf.savefig(fig)\n    plt.close(fig)\n```\n\nКаждый `pdf.savefig(fig)` — новая страница. Закрывайте `fig` после сохранения, чтобы не тратить память.\n\n### Вставить таблицу в PDF\n\nТаблицу через matplotlib можно нарисовать как сетку текста:\n\n```python\nfig, ax = plt.subplots(figsize=(8, 4))\nax.axis('off')\ntable = ax.table(\n    cellText=profile.values,\n    rowLabels=profile.index,\n    colLabels=profile.columns,\n    loc='center',\n)\ntable.auto_set_font_size(False)\ntable.set_fontsize(10)\ntable.scale(1.2, 1.5)\npdf.savefig(fig)\nplt.close(fig)\n```\n\nДля сложных многостраничных PDF с нормальной вёрсткой лучше взять **reportlab** или собрать HTML и конвертировать через `wkhtmltopdf`. Но для типовых KMG-отчётов `PdfPages` хватает.\n\n## Jupyter → HTML / PDF\n\nЕсли весь анализ лежит в ноутбуке, Session 6 часто требует однофайловую отчётность. Варианты:\n\n### HTML — встроенный экспорт\n\n```bash\njupyter nbconvert --to html Session6_Analysis.ipynb --output Session6_Report.html\n```\n\nРезультат — самодостаточный HTML со всеми ячейками и графиками.\n\n### PDF — через `nbconvert`\n\n```bash\njupyter nbconvert --to pdf Session6_Analysis.ipynb --output Session6_Report.pdf\n```\n\nТребует LaTeX (TeX Live или MiKTeX). Часто проблемно с кириллицей — используйте `--template` или сначала экспортируйте в HTML, потом печатайте в PDF из браузера.\n\n### Executable-отчёт\n\nДля воспроизводимости лучше: ноутбук хранит **код + результаты + выводы** в одном файле. Перед сдачей: «Restart kernel and run all cells» — чтобы никто потом не получил другой результат.\n\n## Имена файлов\n\nSession 6 жёстко требует определённые имена deliverables:\n\n- `partners_cleaned.csv`\n- `sales_transactions_cleaned.csv`\n- `Session6_DataExploration.txt`\n- `partners_clusters.csv`\n- `forecast.csv`, `forecast.png`\n- `Session6_Report.pdf`\n- и т. п.\n\nПроверяйте точное имя из ТЗ — от одного лишнего пробела или неправильного суффикса теряются баллы.\n\n## Что запомнить\n\n- CSV: `to_csv(path, index=False, encoding='utf-8-sig')`.\n- Excel с одним листом — `to_excel(path, index=False)`; много листов — `ExcelWriter` + `with`.\n- PDF-отчёт — `PdfPages` из matplotlib, страница = `fig`; не забывайте `plt.close(fig)`.\n- Jupyter → HTML через `nbconvert --to html`; PDF через браузер-печать, если LaTeX не настроен.\n- Всегда «Restart & Run All» перед сдачей ноутбука.\n- Имена файлов — ровно как в ТЗ, без вольностей."
+  },
+  "practice": [
+    {
+      "id": "session6-exports",
+      "title": "Собрать файлы Session 6",
+      "goal": "Выгрузить очищенные данные, сводные отчёты и отчётный PDF.",
+      "steps": [
+        {
+          "id": "csv-exports",
+          "instruction": "Экспортируйте очищенные `partners` и `transactions` в CSV с правильной кодировкой.",
+          "code": {
+            "language": "python",
+            "full": "partners.to_csv('partners_cleaned.csv', index=False, encoding='utf-8-sig')\ntransactions.to_csv('sales_transactions_cleaned.csv', index=False, encoding='utf-8-sig')\n\nprint('saved: partners_cleaned.csv, sales_transactions_cleaned.csv')",
+            "explanation": "`utf-8-sig` даёт BOM, без которого Excel на Windows может отобразить кириллицу крокозябрами. Linux/macOS её корректно обрабатывают с ним и без него."
+          },
+          "hints": [
+            "Проверьте имена файлов на точное соответствие ТЗ — сравните строку с точкой в pdf брифа.",
+            "Откройте результат в Excel и убедитесь, что кириллица читается."
+          ]
+        },
+        {
+          "id": "multi-sheet-xlsx",
+          "instruction": "Соберите `Session6_Report.xlsx` с листами `Partners`, `Monthly`, `Forecast`, `Clusters`.",
+          "code": {
+            "language": "python",
+            "full": "import pandas as pd\n\nwith pd.ExcelWriter('Session6_Report.xlsx', engine='openpyxl') as writer:\n    partner_summary.to_excel(writer, sheet_name='Partners', index=False)\n    monthly.to_excel(writer, sheet_name='Monthly', index=False)\n    out.to_excel(writer, sheet_name='Forecast', index=False)  # out из урока 11\n    profile.to_excel(writer, sheet_name='Clusters')           # profile из урока 10\n\nprint('saved: Session6_Report.xlsx')",
+            "explanation": "`engine='openpyxl'` — для `.xlsx`. Для кластеров оставляем индекс (`cluster`), чтобы его было видно как подпись строки."
+          },
+          "hints": [
+            "Если `openpyxl` не установлен — `pip install openpyxl`.",
+            "Все четыре переменные должны быть определены заранее (из уроков 05, 10, 11)."
+          ]
+        },
+        {
+          "id": "pdf-report",
+          "instruction": "Сгенерируйте трёхстраничный PDF: титульный лист, график дневных продаж, график прогноза.",
+          "code": {
+            "language": "python",
+            "full": "from matplotlib.backends.backend_pdf import PdfPages\nimport matplotlib.pyplot as plt\n\nwith PdfPages('Session6_Report.pdf') as pdf:\n    # титул\n    fig, ax = plt.subplots(figsize=(8.27, 11.69))\n    ax.axis('off')\n    ax.text(0.5, 0.7, 'KMG Session 6', ha='center', fontsize=24, weight='bold')\n    ax.text(0.5, 0.6, 'Data Analysis Report', ha='center', fontsize=16)\n    pdf.savefig(fig)\n    plt.close(fig)\n\n    # daily\n    fig, ax = plt.subplots(figsize=(10, 5))\n    daily.plot(ax=ax, color='#003f7f')\n    ax.set_title('Daily revenue')\n    ax.set_xlabel('Date')\n    ax.set_ylabel('Amount, тенге')\n    ax.grid(True, alpha=0.3)\n    fig.tight_layout()\n    pdf.savefig(fig)\n    plt.close(fig)\n\n    # forecast\n    fig, ax = plt.subplots(figsize=(10, 5))\n    daily.tail(60).plot(ax=ax, color='#003f7f', label='Факт')\n    mean.plot(ax=ax, color='#d62728', label='Прогноз')\n    ax.fill_between(ci.index, ci.iloc[:, 0], ci.iloc[:, 1], color='#d62728', alpha=0.2, label='95 % CI')\n    ax.set_title('30-day forecast')\n    ax.legend()\n    ax.grid(True, alpha=0.3)\n    fig.tight_layout()\n    pdf.savefig(fig)\n    plt.close(fig)\n\nprint('saved: Session6_Report.pdf')",
+            "explanation": "Три `pdf.savefig(fig)` — три страницы. Каждая фигура закрывается вручную. Размер титульной страницы задан как A4 (8.27×11.69 дюйма)."
+          },
+          "hints": [
+            "Если кириллица в PDF превращается в квадраты — добавьте в начале `plt.rcParams['font.family'] = 'DejaVu Sans'`.",
+            "Для добавления таблиц — используйте `ax.table(...)` и тот же `pdf.savefig(fig)`."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": ["task-session-6-data-analysis"]
+}

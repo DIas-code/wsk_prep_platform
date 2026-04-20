@@ -95,6 +95,34 @@ export function updateTask(
   return state;
 }
 
+/**
+ * Start the timer for a task. Idempotent: if `startedAt` is already set, returns state
+ * unchanged so a reload or re-render doesn't reset the student's clock.
+ */
+export function startTask(moduleId: ModuleId, taskId: string): ProgressState {
+  const loaded = loadProgress();
+  const existing = loaded.modules[moduleId]?.tasks[taskId]?.startedAt;
+  if (existing) return loaded;
+  const now = new Date().toISOString();
+  const { state, mod } = ensureModule(loaded, moduleId);
+  const prev = mod.tasks[taskId] ?? {};
+  mod.tasks[taskId] = { ...prev, startedAt: now, attemptedAt: prev.attemptedAt ?? now };
+  saveProgress(state);
+  return state;
+}
+
+/** Clear the timer so the student can start over. Keeps criteria/deliverables untouched. */
+export function resetTaskTimer(moduleId: ModuleId, taskId: string): ProgressState {
+  const loaded = loadProgress();
+  const { state, mod } = ensureModule(loaded, moduleId);
+  const prev = mod.tasks[taskId];
+  if (!prev?.startedAt) return loaded;
+  const { startedAt: _omit, ...rest } = prev;
+  mod.tasks[taskId] = rest;
+  saveProgress(state);
+  return state;
+}
+
 export function updateTaskCriteria(
   moduleId: ModuleId,
   taskId: string,
@@ -129,6 +157,33 @@ function toggleTaskArray(
   mod.tasks[taskId] = { ...prev, [field]: [...current] };
   saveProgress(state);
   return state;
+}
+
+/**
+ * Serialize the current progress state to a pretty-printed JSON string so the
+ * student can save it as a backup or move it between browsers.
+ */
+export function exportProgressJson(): string {
+  return JSON.stringify(loadProgress(), null, 2);
+}
+
+/**
+ * Replace the stored progress with the payload in `raw`. Throws a human-readable
+ * error if the JSON is malformed or does not match the v1 schema — the caller
+ * should surface the message to the user.
+ */
+export function importProgressJson(raw: string): ProgressState {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("Файл не является корректным JSON");
+  }
+  if (!isProgressState(parsed)) {
+    throw new Error("Файл не соответствует формату прогресса (ожидается version=1)");
+  }
+  saveProgress(parsed);
+  return loadProgress();
 }
 
 /** % of lessons in the module marked complete (0-100). */
@@ -195,6 +250,7 @@ function isLessonProgress(x: unknown): x is LessonProgress {
 function isTaskProgress(x: unknown): x is TaskProgress {
   if (!isPlainObject(x)) return false;
   if (x["attemptedAt"] !== undefined && typeof x["attemptedAt"] !== "string") return false;
+  if (x["startedAt"] !== undefined && typeof x["startedAt"] !== "string") return false;
   if (x["completedAt"] !== undefined && typeof x["completedAt"] !== "string") return false;
   if (x["selfScore"] !== undefined && typeof x["selfScore"] !== "number") return false;
   if (!isOptionalStringArray(x["criteriaChecked"])) return false;

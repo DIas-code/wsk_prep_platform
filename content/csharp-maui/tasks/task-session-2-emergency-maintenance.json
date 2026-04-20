@@ -5,7 +5,17 @@
   "overview": "**KMG** требует внутреннюю систему управления обслуживанием активов. В этой сессии — **desktop-приложение** для **неплановых (emergency) заявок**. Две роли с разными экранами и правами:\n\n- **Accountable Party** (обычный сотрудник) — видит свои активы, создаёт новые EM-заявки.\n- **Maintenance Manager** (admin) — видит все открытые заявки, обрабатывает их, фиксирует запчасти.\n\nПлатформа desktop — на усмотрение разработчика (рекомендуется MAUI Windows или WPF). БД — `Session2`, MS SQL Server.",
   "difficulty": "championship",
   "relatedModule": "csharp-maui",
-  "relatedLessons": [],
+  "relatedLessons": [
+    "04-controls-catalog",
+    "05-data-binding",
+    "06-mvvm-toolkit",
+    "07-collectionview",
+    "08-shell-navigation",
+    "09-sqlserver-ado",
+    "10-validation",
+    "11-styles-themes",
+    "14-auth-and-roles"
+  ],
   "timeLimitMinutes": 300,
   "sections": [
     {

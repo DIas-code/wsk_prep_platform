@@ -1,0 +1,60 @@
+{
+  "id": "05-groupby-aggregation",
+  "moduleId": "python-data-analysis",
+  "title": "Группировка и агрегация: groupby + agg",
+  "summary": "Метод `.groupby()` (по одной и нескольким колонкам), вычисление `sum`, `mean`, `count`, `nunique`, `size`. Передача нескольких функций через `.agg({})`. Именованные агрегаты (`NamedAgg`). Разница `size` vs `count`. Python 3.13+, pandas последней стабильной версии.",
+  "estimatedMinutes": 40,
+  "theory": {
+    "kind": "inline",
+    "value": "# Группировка и агрегация\n\n`groupby` — ключевой инструмент любого отчёта. Модель split-apply-combine: pandas **разбивает** таблицу на куски по значению ключевой колонки, **применяет** функцию к каждому куску и **собирает** результаты обратно.\n\nВ Session 6 без `groupby` не сделать ни одной task-секции: объём продаж по месяцам, чеки по партнёрам, топ-продуктов по выручке — всё это `groupby`.\n\n## Простейшая форма\n\n```python\n# сумма продаж по партнёру\nby_partner = transactions.groupby('partner_id')['amount'].sum()\n```\n\nЧто здесь происходит:\n\n1. `groupby('partner_id')` — разбить по значению `partner_id`.\n2. `['amount']` — взять только колонку `amount` из каждой группы.\n3. `.sum()` — свести группу к одному числу.\n\nРезультат — `Series`, индексом служит `partner_id`. Для `DataFrame`-результата берите столбцы через двойные скобки:\n\n```python\nby_partner = transactions.groupby('partner_id')[['amount', 'quantity']].sum()\n```\n\n## Группировка по нескольким колонкам\n\n```python\nby_partner_month = (\n    transactions\n    .groupby(['partner_id', transactions['transaction_date'].dt.to_period('M')])['amount']\n    .sum()\n)\n```\n\n`dt.to_period('M')` превращает дату в «месяц» (`2025-03`), получается аккуратная группировка по месяцам без необходимости отдельно хранить колонку-ключ.\n\nРезультат — `Series` с **MultiIndex** (иерархическим индексом). Чтобы вернуться к плоской таблице, используйте `.reset_index()`:\n\n```python\ntidy = by_partner_month.reset_index()\ntidy.columns = ['partner_id', 'month', 'total_amount']\n```\n\n## Несколько агрегатов сразу: `.agg`\n\nКогда нужно не только `sum`, но и `mean`, `count`, `max` одновременно:\n\n```python\nsummary = transactions.groupby('partner_id')['amount'].agg(['sum', 'mean', 'count', 'max'])\n```\n\nРезультат — `DataFrame` с одной строкой на партнёра и колонками `sum`, `mean`, `count`, `max`.\n\n### Разные функции для разных колонок\n\n```python\nsummary = transactions.groupby('partner_id').agg({\n    'amount': ['sum', 'mean'],\n    'transaction_id': 'count',\n    'product_id': 'nunique',\n})\n```\n\nКогда так делаете, колонки в результате становятся **многоуровневыми** (`('amount', 'sum')` и т. д.) — это удобно для отчётов, но неудобно для экспорта. В таких случаях — именованные агрегаты:\n\n```python\nsummary = transactions.groupby('partner_id').agg(\n    total_amount=('amount', 'sum'),\n    avg_amount=('amount', 'mean'),\n    n_transactions=('transaction_id', 'count'),\n    n_unique_products=('product_id', 'nunique'),\n).reset_index()\n```\n\nКаждая строка — `new_name=(column, function)`. Результат — плоский `DataFrame` с понятными именами. Это рекомендуемый стиль для Session 6.\n\n## `count` vs `size`\n\nЧастый подвох:\n\n- `count()` — **не считает** `NaN`. Возвращает количество по каждой колонке.\n- `size()` — считает размер группы целиком, включая `NaN`.\n\n```python\ntransactions.groupby('partner_id').size()          # строк на партнёра\ntransactions.groupby('partner_id')['promotion_id'].count()  # только не-NaN promotion_id\n```\n\nЕсли «количество покупок партнёра» не зависит от заполненности отдельной колонки — берите `size`.\n\n## `nunique` — количество уникальных значений\n\nТипично для вопросов вида «скольким разным продуктам купил каждый партнёр?»:\n\n```python\ntransactions.groupby('partner_id')['product_id'].nunique()\n```\n\n## Фильтрация групп: `.filter` и `.transform`\n\n**`.filter`** — оставить только группы, удовлетворяющие условию:\n\n```python\n# только партнёры с ≥ 10 транзакциями\nactive = transactions.groupby('partner_id').filter(lambda g: len(g) >= 10)\n```\n\n**`.transform`** — посчитать агрегат, но вернуть его обратно к строкам исходной таблицы (для последующих формул):\n\n```python\ntransactions['partner_total'] = (\n    transactions.groupby('partner_id')['amount'].transform('sum')\n)\ntransactions['share_of_partner'] = transactions['amount'] / transactions['partner_total']\n```\n\n`transform` — один из самых полезных методов: он возвращает результат **того же размера, что исходная таблица**, сохраняя индекс.\n\n## Сортировка результата\n\n`groupby` по умолчанию сортирует группы по ключу. Если нужен топ-N по агрегату — сортируйте результат:\n\n```python\ntop5 = (\n    transactions.groupby('product_id')['amount']\n    .sum()\n    .sort_values(ascending=False)\n    .head(5)\n)\n```\n\n## Что запомнить\n\n- `df.groupby(key)[col].agg(func)` — базовая форма.\n- Несколько функций — `agg(['sum', 'mean'])`; разные для разных колонок — `agg({col: func})`.\n- Именованные агрегаты `agg(new_name=(col, func))` — самый чистый вариант для отчётов.\n- `count` игнорирует `NaN`, `size` — нет.\n- `nunique` для подсчёта уникальных.\n- `.transform` возвращает результат того же размера, что исходный — удобно для производных колонок.\n- `.filter` отфильтровывает целые группы по условию.\n- После `groupby` часто нужен `.reset_index()` — чтобы ключи снова стали колонками."
+  },
+  "practice": [
+    {
+      "id": "partner-summary",
+      "title": "Сводка по партнёрам",
+      "goal": "Построить DataFrame со сводными показателями на партнёра: количество транзакций, сумма, средний чек, количество уникальных продуктов.",
+      "steps": [
+        {
+          "id": "named-agg",
+          "instruction": "Через именованные агрегаты соберите таблицу `partner_summary` с колонками `n_transactions`, `total_amount`, `avg_amount`, `n_unique_products`.",
+          "code": {
+            "language": "python",
+            "full": "import pandas as pd\n\ntransactions = pd.read_csv(\n    'sales_transactions_cleaned.csv',\n    parse_dates=['transaction_date'],\n    dtype={'partner_id': str, 'product_id': str}\n)\n\npartner_summary = (\n    transactions\n    .groupby('partner_id')\n    .agg(\n        n_transactions=('transaction_id', 'count'),\n        total_amount=('amount', 'sum'),\n        avg_amount=('amount', 'mean'),\n        n_unique_products=('product_id', 'nunique'),\n    )\n    .reset_index()\n)\n\nprint(partner_summary.head())",
+            "explanation": "`.reset_index()` в конце — чтобы `partner_id` стал колонкой, не индексом. Это почти всегда хочется в отчётах."
+          },
+          "hints": [
+            "Если `transaction_id` у вас содержит NaN — замените на `'size'` (`'size'` не столько про колонку, сколько про размер группы).",
+            "`.mean()` игнорирует NaN, так что `avg_amount` корректен даже при пропусках."
+          ]
+        },
+        {
+          "id": "monthly-sales",
+          "instruction": "Посчитайте общую выручку по месяцам, получите плоский `DataFrame` с колонками `month` и `total_amount`.",
+          "code": {
+            "language": "python",
+            "full": "monthly = (\n    transactions\n    .groupby(transactions['transaction_date'].dt.to_period('M'))['amount']\n    .sum()\n    .rename_axis('month')\n    .reset_index(name='total_amount')\n)\n\nmonthly['month'] = monthly['month'].astype(str)\nprint(monthly.head(12))",
+            "explanation": "`rename_axis('month')` даёт индексу имя до `reset_index`. `reset_index(name='total_amount')` сразу именует колонку значений. Перевод `Period` в `str` — для удобного экспорта/печати."
+          },
+          "hints": [
+            "`dt.to_period('M')` требует `datetime64`. Если `transaction_date` ещё строка — используйте `pd.to_datetime(...)`.",
+            "Для квартальной группировки — `to_period('Q')`, для годовой — `to_period('Y')`."
+          ]
+        },
+        {
+          "id": "share-of-partner",
+          "instruction": "Добавьте в `transactions` колонку `share_of_partner` — долю транзакции в общей сумме этого партнёра.",
+          "code": {
+            "language": "python",
+            "full": "transactions['partner_total'] = (\n    transactions.groupby('partner_id')['amount'].transform('sum')\n)\ntransactions['share_of_partner'] = transactions['amount'] / transactions['partner_total']\n\nprint(transactions[['partner_id', 'amount', 'partner_total', 'share_of_partner']].head())",
+            "explanation": "`transform('sum')` возвращает `Series` того же размера, что `transactions`, но каждое значение — это сумма по всей группе партнёра. Деление даёт долю. Это каноничный паттерн «добавить агрегат как новую колонку»."
+          },
+          "hints": [
+            "Сумма `share_of_partner` внутри каждой группы партнёра будет равна 1.0 — хорошая проверка.",
+            "Без `transform` пришлось бы делать `merge` с агрегатом — длиннее и медленнее."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": ["task-session-6-data-analysis"]
+}

@@ -1,0 +1,60 @@
+{
+  "id": "07-time-series",
+  "moduleId": "python-data-analysis",
+  "title": "Временные ряды: DatetimeIndex, resample, rolling",
+  "summary": "Перевод колонки-даты в индекс, ресэмплинг (`resample('D'|'W'|'M')`), скользящие окна (`rolling`), сдвиги (`shift`). Частотные строки pandas. Python 3.13+, pandas последней стабильной версии.",
+  "estimatedMinutes": 40,
+  "theory": {
+    "kind": "inline",
+    "value": "# Временные ряды\n\nЕсли хоть одна колонка — дата, то у вас временной ряд, даже если вы это так не назвали. pandas (родом из финансов) даёт для временных рядов удобные инструменты, и в Session 6 они нужны сразу: трендовая часть задачи и ARIMA-прогноз работают на дневной выручке, посчитанной из транзакций.\n\n## `DatetimeIndex`\n\nБазовая идея: сделать дату **индексом** DataFrame. Это разблокирует `resample`, удобные срезы по периодам и корректное построение графиков.\n\n```python\nimport pandas as pd\n\ntx = pd.read_csv('sales_transactions_cleaned.csv', parse_dates=['transaction_date'])\ntx = tx.set_index('transaction_date').sort_index()\n```\n\n`sort_index()` обязателен — многие методы требуют отсортированный индекс и без него работают неверно или медленнее.\n\n### Срезы\n\nОдин из самых приятных фокусов — срезы по строкам-датам:\n\n```python\ntx.loc['2025']                  # весь 2025 год\ntx.loc['2025-03']               # март 2025\ntx.loc['2025-03-01':'2025-03-07']  # неделя\n```\n\npandas сам поймёт частичные даты. Важно: срез **включает** правую границу.\n\n## `resample` — группировка по времени\n\nАналог `groupby` для времени, но умеет дополнять пропущенные периоды:\n\n```python\ndaily = tx['amount'].resample('D').sum()\nweekly = tx['amount'].resample('W').sum()\nmonthly = tx['amount'].resample('ME').sum()\n```\n\nЧастотные строки (офсеты):\n\n- `'D'` — день.\n- `'W'` — неделя (оканчивается в воскресенье; `'W-MON'` — в понедельник).\n- `'ME'` — конец месяца (в новых pandas; старый синоним `'M'` depricated).\n- `'MS'` — начало месяца.\n- `'QE'` — конец квартала.\n- `'YE'` — конец года.\n- `'h'` / `'min'` — час / минута.\n\nЕсли в каком-то дне транзакций вообще не было, `resample('D').sum()` вернёт `0` (а не пропустит день) — это ровно то, что нужно для прогноза.\n\n### Заполнение пропусков после resample\n\nВстречаются случаи, когда вместо `0` должен быть `NaN` — например, если сумма не имеет смысла на пустом периоде. Тогда:\n\n```python\ndaily = tx['amount'].resample('D').sum(min_count=1)\n```\n\n`min_count=1` говорит: «если в группе ни одного значения, верни `NaN`, а не `0`».\n\n## `rolling` — скользящие окна\n\n7-дневное скользящее среднее (сглаживание дневного шума):\n\n```python\ndaily_avg7 = daily.rolling(window=7).mean()\n```\n\nДругие агрегаты: `.sum()`, `.min()`, `.max()`, `.std()`, `.quantile(0.9)`. Первые `window-1` значений будут `NaN` — это нормально, они «не имеют истории».\n\n### Центрированное окно\n\n```python\ndaily.rolling(window=7, center=True).mean()\n```\n\nТо же сглаживание, но значение привязано к центру окна, не к правому краю. Удобно для визуализации, не подходит, если «будущее не должно участвовать» (например, в прогнозе).\n\n### `min_periods`\n\nХотите, чтобы окно начало считать с первого дня, даже если данных меньше `window`:\n\n```python\ndaily.rolling(window=7, min_periods=1).mean()\n```\n\n## `shift` — сдвиг во времени\n\nВычисление «прирост к вчерашнему»:\n\n```python\ndaily_change = daily - daily.shift(1)\ndaily_pct_change = daily.pct_change()  # то же, но в процентах\n```\n\n`shift(1)` двигает ряд на одну позицию вперёд (вчерашнее значение теперь рядом с сегодняшним). `shift(-1)` — завтрашнее рядом с сегодняшним (используется для таргетов в ML).\n\n## Разложение на тренд\n\nЛинейный тренд легко получить через `rolling` с большим окном или через `statsmodels.tsa.seasonal_decompose` (понадобится в уроке про ARIMA):\n\n```python\nfrom statsmodels.tsa.seasonal import seasonal_decompose\n\ndecomp = seasonal_decompose(daily, period=7)  # недельная сезонность\ndecomp.plot()\n```\n\n## Частые подвохи\n\n1. **Индекс не сортирован.** `resample` может дать странные результаты. `tx.sort_index()` после `set_index`.\n2. **Смешанные временные зоны.** Если файл содержит даты с zone, а другой — без, merge / сравнение дадут сюрпризы. Приводите к одному виду: `tx.index = tx.index.tz_localize(None)`.\n3. **`'M'` vs `'ME'`.** В новых pandas `'M'` даёт предупреждение (deprecated), используйте `'ME'` (month-end) или `'MS'` (month-start).\n4. **Rolling на нерегулярном ряде.** `rolling(window=7)` в нерегулярном ряду берёт 7 **строк**, не 7 **дней**. Для временного окна — `rolling('7D')`.\n\n## Что запомнить\n\n- Дата-индекс + `sort_index()` — стандартный старт для любого ряда.\n- `resample('D'|'W'|'ME').sum()` — аналог `groupby` для времени, автоматом заполняет дыры.\n- `rolling(window=N).mean()` — сглаживание; используйте `center=True` только для визуализации.\n- `shift(1)` — сравнение с прошлым периодом; `pct_change()` — в процентах.\n- Новые частоты: `'ME'`, `'MS'`, `'YE'`, `'QE'`. Старый `'M'` — deprecated.\n- Для временного окна (не по строкам) — `rolling('7D')`."
+  },
+  "practice": [
+    {
+      "id": "daily-series",
+      "title": "Ежедневный ряд продаж",
+      "goal": "Собрать дневную выручку, сгладить 7-дневным скользящим средним, найти «лучший» и «худший» день.",
+      "steps": [
+        {
+          "id": "build-daily",
+          "instruction": "Постройте ряд `daily` — сумма `amount` по дням, с заполнением пропущенных дней нулями.",
+          "code": {
+            "language": "python",
+            "full": "import pandas as pd\n\ntx = pd.read_csv('sales_transactions_cleaned.csv', parse_dates=['transaction_date'])\ntx = tx.set_index('transaction_date').sort_index()\n\ndaily = tx['amount'].resample('D').sum()\nprint(daily.head())\nprint(f'дней в ряду: {len(daily)}')",
+            "explanation": "`resample('D').sum()` группирует по календарному дню и заполняет пустые дни нулями — это важно для ARIMA, которая хочет регулярный ряд."
+          },
+          "hints": [
+            "Если `daily.index` содержит `NaT` — значит среди транзакций есть незаполненные даты, очистите их на шаге 04.",
+            "Проверьте частоту: `daily.index.freq` — должна быть `D`."
+          ]
+        },
+        {
+          "id": "rolling-mean",
+          "instruction": "Добавьте 7-дневное скользящее среднее и покажите последние 14 дней обоих рядов.",
+          "code": {
+            "language": "python",
+            "full": "df = pd.DataFrame({'daily': daily})\ndf['ma7'] = df['daily'].rolling(window=7).mean()\n\nprint(df.tail(14))",
+            "explanation": "Помещаем оба ряда в один DataFrame — так удобнее смотреть и потом рисовать на общем графике. `tail(14)` показывает две последние недели."
+          },
+          "hints": [
+            "В первых 6 строках `ma7` будет `NaN` — это правильно, окно ещё не набрано.",
+            "Если хотите начать считать с первого дня: `rolling(window=7, min_periods=1).mean()`."
+          ]
+        },
+        {
+          "id": "best-worst-day",
+          "instruction": "Найдите день с максимальной выручкой и день с минимальной (среди дней с хотя бы одной транзакцией).",
+          "code": {
+            "language": "python",
+            "full": "non_zero = daily[daily > 0]\nbest_day = non_zero.idxmax()\nworst_day = non_zero.idxmin()\n\nprint(f'лучший день:  {best_day.date()} — {non_zero.loc[best_day]:.2f}')\nprint(f'худший день:  {worst_day.date()} — {non_zero.loc[worst_day]:.2f}')",
+            "explanation": "`idxmax` / `idxmin` возвращают **индекс** (дату), не значение. `non_zero = daily[daily > 0]` нужен, чтобы не получить «минимальный день» на дне, где вообще не было продаж."
+          },
+          "hints": [
+            "Если хотите топ-5 по выручке: `daily.nlargest(5)`.",
+            "`.date()` у `Timestamp` возвращает `datetime.date` — удобно для печати без часов/минут."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": ["task-session-6-data-analysis"]
+}

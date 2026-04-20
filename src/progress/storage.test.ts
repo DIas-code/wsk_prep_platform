@@ -2,8 +2,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { PROGRESS_STORAGE_KEY } from "../types";
 import {
+  exportProgressJson,
+  importProgressJson,
   loadProgress,
+  resetTaskTimer,
   saveProgress,
+  startTask,
   updateLesson,
   updateTask,
   updateTaskCriteria,
@@ -113,6 +117,65 @@ describe("updateTaskCriteria — 5.3 round-trip", () => {
     const state = loadProgress();
     expect(state.modules["m1"]?.tasks["task-1"]?.selfScore).toBe(70);
     expect(state.modules["m1"]?.tasks["task-1"]?.criteriaChecked).toEqual(["c1"]);
+  });
+});
+
+describe("startTask / resetTaskTimer — 7.3 timer", () => {
+  it("sets startedAt and attemptedAt on first call", () => {
+    const before = Date.now();
+    startTask("m1", "task-1");
+    const t = loadProgress().modules["m1"]?.tasks["task-1"];
+    expect(t?.startedAt).toBeDefined();
+    expect(t?.attemptedAt).toBe(t?.startedAt);
+    expect(Date.parse(t!.startedAt!)).toBeGreaterThanOrEqual(before);
+  });
+
+  it("is idempotent: a second call does not overwrite startedAt", async () => {
+    startTask("m1", "task-1");
+    const first = loadProgress().modules["m1"]?.tasks["task-1"]?.startedAt;
+    await new Promise((r) => setTimeout(r, 5));
+    startTask("m1", "task-1");
+    const second = loadProgress().modules["m1"]?.tasks["task-1"]?.startedAt;
+    expect(second).toBe(first);
+  });
+
+  it("resetTaskTimer clears startedAt but preserves criteriaChecked", () => {
+    startTask("m1", "task-1");
+    updateTaskCriteria("m1", "task-1", "c1", true);
+    resetTaskTimer("m1", "task-1");
+    const t = loadProgress().modules["m1"]?.tasks["task-1"];
+    expect(t?.startedAt).toBeUndefined();
+    expect(t?.criteriaChecked).toEqual(["c1"]);
+  });
+});
+
+describe("exportProgressJson / importProgressJson — 7.1 backup", () => {
+  it("round-trips state through export and import", () => {
+    updateLesson("m1", "l1", { stepsDone: ["b1:s1"] });
+    updateTask("m1", "task-1", { selfScore: 55 });
+    const json = exportProgressJson();
+
+    localStorage.clear();
+    expect(loadProgress().modules).toEqual({});
+
+    importProgressJson(json);
+    const state = loadProgress();
+    expect(state.modules["m1"]?.lessons["l1"]?.stepsDone).toEqual(["b1:s1"]);
+    expect(state.modules["m1"]?.tasks["task-1"]?.selfScore).toBe(55);
+  });
+
+  it("rejects malformed JSON with a human-readable error", () => {
+    expect(() => importProgressJson("{not json")).toThrow(/JSON/);
+  });
+
+  it("rejects a payload with the wrong version", () => {
+    const bad = JSON.stringify({ version: 2, modules: {}, updatedAt: "t" });
+    expect(() => importProgressJson(bad)).toThrow(/version/);
+  });
+
+  it("rejects a payload with the wrong shape", () => {
+    const bad = JSON.stringify({ version: 1, modules: "nope", updatedAt: "t" });
+    expect(() => importProgressJson(bad)).toThrow();
   });
 });
 

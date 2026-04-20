@@ -5,7 +5,17 @@
   "overview": "Session 4 — **Windows desktop-приложение** для администраторов KMG с тремя модулями, доступными через вкладки одного главного окна:\n\n1. **Purchase Order Management** — закупки у внешних поставщиков.\n2. **Warehouse Management** — перемещение запчастей между складами.\n3. **Inventory Report** — остатки по складам в трёх режимах.\n\nКлючевая механика: учёт ведётся по ключу **(Part Name + Batch Number)** для запчастей с `BatchNumberHasRequired = true`. Система **никогда** не должна допускать отрицательные остатки ни на одном складе.",
   "difficulty": "championship",
   "relatedModule": "csharp-maui",
-  "relatedLessons": [],
+  "relatedLessons": [
+    "03-layout-containers",
+    "04-controls-catalog",
+    "05-data-binding",
+    "06-mvvm-toolkit",
+    "07-collectionview",
+    "09-sqlserver-ado",
+    "10-validation",
+    "11-styles-themes",
+    "14-auth-and-roles"
+  ],
   "timeLimitMinutes": 300,
   "sections": [
     {

@@ -1,0 +1,60 @@
+{
+  "id": "04-data-cleaning",
+  "moduleId": "python-data-analysis",
+  "title": "Очистка данных: пропуски, дубликаты, типы",
+  "summary": "Работа с `NaN` (`isna`, `fillna`, `dropna`), удаление дубликатов (`duplicated`, `drop_duplicates`), приведение типов (`astype`, `pd.to_numeric`, `pd.to_datetime` с `errors='coerce'`), нормализация строк. Python 3.13+, pandas последней стабильной версии.",
+  "estimatedMinutes": 40,
+  "theory": {
+    "kind": "inline",
+    "value": "# Очистка данных\n\nОчистка — самая недооценённая и самая важная часть анализа. Если на этом шаге вы оставите мусор, следующие шаги (`groupby`, ARIMA, K-means) построят уверенные выводы на этом мусоре, и никто не поймёт, почему цифры странные.\n\nВ Session 6 KMG очистка — отдельный deliverable (`Task 1.2 — Data Cleaning`), поэтому этот урок сразу построен по тем правилам.\n\n## Пропуски (`NaN`)\n\npandas хранит пропуски как `NaN` (для чисел) или `NaT` (для дат). В булевой маске пропуски ведут себя как «неизвестно» и могут ломать фильтры, если забыть `na=False`/`fillna`.\n\n### Обнаружение\n\n```python\ndf.isna()            # DataFrame из True/False\ndf.isna().sum()      # количество пропусков по колонке\ndf.isna().any(axis=1).sum()  # сколько строк имеют хоть один пропуск\n```\n\n### Стратегии\n\nТри типичных стратегии:\n\n1. **Заполнить значением** (`fillna`) — когда пропуск означает «нет данных, но запись валидна».\n2. **Удалить строку** (`dropna`) — когда без этой колонки запись бесполезна.\n3. **Оставить и учесть** — многие методы (`mean`, `groupby`) по умолчанию игнорируют `NaN`.\n\nПравила из Session 6:\n\n```python\n# partners: возраст → медиана\npartners['age'] = partners['age'].fillna(partners['age'].median())\n\n# partners: телефон → '0' (чтобы не потерять строку)\npartners['phone_number'] = partners['phone_number'].fillna('0')\n\n# transactions: promotion_id → '0'\ntransactions['promotion_id'] = transactions['promotion_id'].fillna('0')\n```\n\n**Внимание:** `fillna` возвращает **новый** `Series`. Присваивайте результат обратно (или используйте `inplace=True`, но это считается устаревшим стилем — лучше явное присваивание).\n\n### `dropna`\n\n```python\n# удалить строки с пропуском хоть где-то\nclean = df.dropna()\n\n# только где NaN в конкретных колонках\nclean = df.dropna(subset=['transaction_date', 'amount'])\n\n# строки, где все значения NaN\nclean = df.dropna(how='all')\n```\n\nИспользуйте `subset=` почти всегда — `dropna()` без параметров часто выбрасывает половину таблицы из-за одной шумной колонки.\n\n## Дубликаты\n\n```python\ndf.duplicated()                      # True для повторов (первое вхождение = False)\ndf.duplicated(subset=['partner_id']) # по подмножеству колонок\n\ndf.drop_duplicates()                 # убрать все точные дубликаты\ndf.drop_duplicates(subset=['partner_id'], keep='last')  # оставить последний по id\n```\n\n`keep`: `'first'` (по умолчанию), `'last'`, `False` (выкинуть **все** дубликаты, включая первый).\n\n## Приведение типов\n\n### `astype`\n\nПростое приведение, но жёсткое — бросит ошибку на неконвертируемом значении:\n\n```python\ndf['amount'] = df['amount'].astype(float)\ndf['partner_id'] = df['partner_id'].astype(str)\n```\n\n### `pd.to_numeric` / `pd.to_datetime` с `errors='coerce'`\n\nКогда в данных мусор и вы хотите, чтобы он превратился в `NaN` вместо крашнуть программу:\n\n```python\ndf['amount'] = pd.to_numeric(df['amount'], errors='coerce')\ndf['transaction_date'] = pd.to_datetime(df['transaction_date'], errors='coerce')\n\n# теперь все битые значения — NaN / NaT, можно обработать\nprint(df['amount'].isna().sum())\n```\n\n`errors='coerce'` — ваш друг на грязных данных. `errors='raise'` (по умолчанию) — когда вы уверены в формате и хотите узнать сразу, если что-то поломалось.\n\n### Категории\n\nЕсли колонка принимает маленькое число уникальных значений (`country`, `status`), тип `'category'` сильно экономит память и ускоряет `groupby`:\n\n```python\ndf['status'] = df['status'].astype('category')\n```\n\n## Строки: нормализация\n\nТипичные проблемы — лишние пробелы, разный регистр, мусорные символы. `Series.str.*` — это векторизованный доступ к строковым методам Python:\n\n```python\ndf['name'] = df['name'].str.strip()\ndf['email'] = df['email'].str.lower()\n\n# оставить только цифры и ведущий '+' (правило Session 6 для телефонов)\ndf['phone_number'] = df['phone_number'].str.replace(r'(?<!^)\\D', '', regex=True)\ndf['phone_number'] = df['phone_number'].str.replace(r'^(?!\\+)\\D', '', regex=True)\n```\n\nДля более сложных случаев — две строки через `str.replace` с регулярками, как выше (объяснение: первая убирает всё, что не цифра, **кроме** первого символа; вторая убирает не-цифру в начале, если это не `+`).\n\n### Даты: добавить случайное время\n\nSession 6 требует, чтобы в очищенных транзакциях к дате добавлялось случайное время между 09:00 и 17:00:\n\n```python\nimport numpy as np\n\nrng = np.random.default_rng(seed=42)  # seed — для воспроизводимости\noffsets = pd.to_timedelta(rng.integers(9 * 3600, 17 * 3600, size=len(df)), unit='s')\ndf['transaction_date'] = df['transaction_date'].dt.normalize() + offsets\n```\n\n`dt.normalize()` обнуляет время (00:00:00); `offsets` — случайные секунды между 9 ч и 17 ч.\n\n## Порядок операций (важен)\n\n1. Прочитать файл **с правильными типами** (урок 02) — меньше работы потом.\n2. Обработать пропуски (`fillna` / `dropna`).\n3. Убрать дубликаты.\n4. Нормализовать строки.\n5. Привести даты.\n6. В конце: `df.info()` — убедиться, что все типы и количества правильные.\n\nЕсли очистка — отдельный скрипт (часто разумно в Session 6), **сохраняйте результат в новый файл**, не перезаписывайте исходник:\n\n```python\ndf.to_csv('partners_cleaned.csv', index=False, encoding='utf-8-sig')\n```\n\n`index=False` — чтобы pandas не записывал в CSV лишний «безымянный» столбец с индексом.\n\n## Что запомнить\n\n- `isna().sum()` — первое, что смотрите после загрузки.\n- `fillna` — возвращает новый `Series`, не забудьте присвоить.\n- `dropna(subset=...)` — почти всегда с `subset`, иначе удалите лишнее.\n- `drop_duplicates(subset=..., keep=...)` для контроля.\n- Для грязных данных: `pd.to_numeric(..., errors='coerce')`, `pd.to_datetime(..., errors='coerce')`.\n- `Series.str.*` — векторизованные строковые операции; `regex=True` по необходимости.\n- Очищенные данные — в новый файл, `index=False`."
+  },
+  "practice": [
+    {
+      "id": "clean-session6",
+      "title": "Очистка partners и transactions",
+      "goal": "Применить правила Session 6: заполнить пропуски, стандартизировать телефоны, добавить случайное время к датам, сохранить в новые файлы.",
+      "steps": [
+        {
+          "id": "fill-partners-missing",
+          "instruction": "В `partners` заполните пропущенные `age` медианой, `phone_number` — строкой `'0'`, убедитесь, что пропусков не осталось.",
+          "code": {
+            "language": "python",
+            "full": "import pandas as pd\n\npartners = pd.read_csv('partners_KMG.csv', dtype={'partner_id': str, 'phone_number': str})\n\npartners['age'] = partners['age'].fillna(partners['age'].median())\npartners['phone_number'] = partners['phone_number'].fillna('0')\n\nprint(partners.isna().sum())",
+            "explanation": "Медиана устойчивее к выбросам, чем среднее, — поэтому её и рекомендует Session 6. Телефон как `'0'` (строка), чтобы остаться с типом строки."
+          },
+          "hints": [
+            "Если `median()` возвращает `NaN` — значит в колонке вообще ничего нет, кроме пропусков. Проверьте загрузку.",
+            "Если остались пропуски в других колонках — проверьте правила задачи на них тоже."
+          ]
+        },
+        {
+          "id": "normalize-phone",
+          "instruction": "Стандартизируйте `phone_number`: оставьте только цифры и ведущий `+`, если он есть.",
+          "code": {
+            "language": "python",
+            "full": "# шаг 1: первый символ — либо '+', либо цифра, остальное — только цифры\ndef normalize_phone(raw: str) -> str:\n    raw = raw.strip()\n    if not raw:\n        return '0'\n    lead = '+' if raw.startswith('+') else ''\n    digits = ''.join(ch for ch in raw if ch.isdigit())\n    return lead + digits if digits else '0'\n\npartners['phone_number'] = partners['phone_number'].map(normalize_phone)\n\nprint(partners['phone_number'].head(10))",
+            "simplified": "partners['phone_number'] = partners['phone_number'].str.replace(r'[^\\d+]', '', regex=True)",
+            "explanation": "Через функцию + `map` проще читать и отлаживать, чем через регулярки. `map` применяет функцию поэлементно к `Series`; на маленьких DataFrame это не медленнее векторной версии."
+          },
+          "hints": [
+            "Если нужна максимальная скорость на миллионах строк — регулярка через `str.replace(..., regex=True)` быстрее. Но для Session 6 объёмы небольшие."
+          ]
+        },
+        {
+          "id": "add-time-and-save",
+          "instruction": "В `transactions` добавьте к `transaction_date` случайное время между 09:00 и 17:00 и сохраните очищенный файл как `sales_transactions_cleaned.csv`.",
+          "code": {
+            "language": "python",
+            "full": "import numpy as np\nimport pandas as pd\n\ntransactions = pd.read_csv(\n    'sales_transactions.csv',\n    parse_dates=['transaction_date'],\n    dtype={'partner_id': str, 'product_id': str, 'promotion_id': str}\n)\ntransactions['promotion_id'] = transactions['promotion_id'].fillna('0')\n\nrng = np.random.default_rng(seed=42)\nseconds = rng.integers(9 * 3600, 17 * 3600, size=len(transactions))\nofsets = pd.to_timedelta(seconds, unit='s')\n\ntransactions['transaction_date'] = (\n    transactions['transaction_date'].dt.normalize() + ofsets\n)\n\ntransactions.to_csv('sales_transactions_cleaned.csv', index=False, encoding='utf-8-sig')\nprint(transactions[['transaction_date']].head())",
+            "explanation": "`seed=42` делает результат воспроизводимым — важно, когда решение проверяют автоматически и ожидают одинаковый результат на одних и тех же исходных данных."
+          },
+          "hints": [
+            "`dt.normalize()` обнуляет время. Без него вы добавите случайное время поверх уже существующего.",
+            "`index=False` — не писать индекс DataFrame как лишний столбец в CSV."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": ["task-session-6-data-analysis"]
+}

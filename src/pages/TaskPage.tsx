@@ -4,11 +4,14 @@ import { Link, useParams } from "react-router-dom";
 import type { TaskAttachment, TaskSection } from "../types";
 import {
   loadProgress,
+  resetTaskTimer,
+  startTask,
   updateTaskCriteria,
   updateTaskDeliverable,
 } from "../progress/storage";
 import { useContent } from "../ui/ContentContext";
 import { useAsync } from "../ui/useAsync";
+import { formatCountdown, useCountdown } from "../ui/useCountdown";
 import { Markdown } from "../ui/Markdown";
 import { DIFFICULTY_RU } from "../ui/ru";
 
@@ -35,8 +38,13 @@ export function TaskPage() {
         </span>
       </div>
       <p className="text-slate-600 mt-1">{task.summary}</p>
+
       {task.timeLimitMinutes !== undefined && (
-        <p className="text-sm text-slate-500 mt-1">Лимит времени: {task.timeLimitMinutes} мин</p>
+        <TaskTimer
+          moduleId={moduleId}
+          taskId={taskId}
+          limitMinutes={task.timeLimitMinutes}
+        />
       )}
 
       <section className="mt-6">
@@ -86,6 +94,69 @@ export function TaskPage() {
           <Markdown source={task.notes} />
         </section>
       )}
+    </div>
+  );
+}
+
+function TaskTimer({
+  moduleId,
+  taskId,
+  limitMinutes,
+}: {
+  moduleId: string;
+  taskId: string;
+  limitMinutes: number;
+}) {
+  const [startedAt, setStartedAt] = useState<string | undefined>(
+    () => loadProgress().modules[moduleId]?.tasks[taskId]?.startedAt,
+  );
+  const { remainingMs, expired } = useCountdown(startedAt, limitMinutes);
+
+  function onStart() {
+    const next = startTask(moduleId, taskId);
+    setStartedAt(next.modules[moduleId]?.tasks[taskId]?.startedAt);
+  }
+
+  function onReset() {
+    if (!confirm("Сбросить таймер? Прогресс по критериям и deliverables останется.")) return;
+    resetTaskTimer(moduleId, taskId);
+    setStartedAt(undefined);
+  }
+
+  if (!startedAt) {
+    return (
+      <div className="mt-3 flex items-center gap-3 rounded border border-slate-200 bg-slate-50 p-3">
+        <span className="text-sm text-slate-600">
+          Лимит времени: <span className="font-semibold">{limitMinutes} мин</span>
+        </span>
+        <button
+          type="button"
+          onClick={onStart}
+          className="ml-auto rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          Начать таймер
+        </button>
+      </div>
+    );
+  }
+
+  const bg = expired ? "bg-red-50 border-red-300" : "bg-slate-50 border-slate-200";
+  const text = expired ? "text-red-700" : "text-slate-800";
+
+  return (
+    <div className={`mt-3 flex items-center gap-3 rounded border ${bg} p-3`}>
+      <span className="text-sm text-slate-600">Осталось:</span>
+      <span className={`font-mono text-lg font-semibold tabular-nums ${text}`}>
+        {expired ? "время вышло" : formatCountdown(remainingMs)}
+      </span>
+      <span className="text-xs text-slate-500">из {limitMinutes} мин</span>
+      <button
+        type="button"
+        onClick={onReset}
+        className="ml-auto text-sm text-slate-500 hover:text-slate-800 hover:underline"
+      >
+        Сбросить
+      </button>
     </div>
   );
 }

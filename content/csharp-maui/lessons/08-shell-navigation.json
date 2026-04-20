@@ -1,0 +1,67 @@
+{
+  "id": "08-shell-navigation",
+  "moduleId": "csharp-maui",
+  "title": "Shell: навигация, роуты, табы, flyout",
+  "summary": "`AppShell` как корневая оболочка приложения: маршруты (`Routes`), `TabBar`, `FlyoutItem`, URI-навигация `Shell.Current.GoToAsync`, передача параметров через `[QueryProperty]`, модальные экраны, кнопка «назад». .NET 10 MAUI.",
+  "estimatedMinutes": 50,
+  "theory": {
+    "kind": "inline",
+    "value": "# Shell\n\n**Shell** — навигационная оболочка MAUI. Один `AppShell` на приложение, внутри — иерархия табов, flyout-меню (боковая шторка) и страниц. Shell умеет маршрутизацию по URI (`//assets/detail?id=42`), «назад»-кнопку, модальные экраны и deep links.\n\nДля задач KMG Shell — дефолтный выбор. Если у тебя больше одной страницы — ты на Shell.\n\n## AppShell.xaml\n\n```xml\n<Shell xmlns=\"http://schemas.microsoft.com/dotnet/2021/maui\"\n       xmlns:x=\"http://schemas.microsoft.com/winfx/2009/xaml\"\n       xmlns:views=\"clr-namespace:KmgAssets.Views\"\n       x:Class=\"KmgAssets.AppShell\"\n       Title=\"KMG Assets\">\n\n    <TabBar>\n        <ShellContent Title=\"Активы\"\n                      Icon=\"assets.png\"\n                      ContentTemplate=\"{DataTemplate views:AssetsPage}\"\n                      Route=\"assets\" />\n        <ShellContent Title=\"Заявки\"\n                      Icon=\"requests.png\"\n                      ContentTemplate=\"{DataTemplate views:RequestsPage}\"\n                      Route=\"requests\" />\n        <ShellContent Title=\"Отчёты\"\n                      Icon=\"reports.png\"\n                      ContentTemplate=\"{DataTemplate views:ReportsPage}\"\n                      Route=\"reports\" />\n    </TabBar>\n</Shell>\n```\n\n`TabBar` даёт нижнюю (Android) или верхнюю (Windows) панель вкладок. `ContentTemplate=\"{DataTemplate ...}\"` — страница создаётся **лениво**, когда пользователь переходит на вкладку. Это критично: если поставить `<views:AssetsPage />` напрямую, все страницы создадутся сразу при запуске.\n\n## FlyoutItem\n\nБоковая шторка (hamburger menu) — `FlyoutItem`:\n\n```xml\n<Shell>\n    <FlyoutItem Title=\"Активы\" Icon=\"assets.png\">\n        <ShellContent ContentTemplate=\"{DataTemplate views:AssetsPage}\" Route=\"assets\" />\n    </FlyoutItem>\n    <FlyoutItem Title=\"Заявки\" Icon=\"requests.png\">\n        <ShellContent ContentTemplate=\"{DataTemplate views:RequestsPage}\" Route=\"requests\" />\n    </FlyoutItem>\n</Shell>\n```\n\n`FlyoutBehavior=\"Flyout\"` (по умолчанию) — есть шторка. `Disabled` — спрятать полностью. В задачах KMG чаще встречается `TabBar`, но Flyout понадобится для меню администратора.\n\n## Навигация через GoToAsync\n\n```csharp\nawait Shell.Current.GoToAsync(\"assetDetail?id=42\");\nawait Shell.Current.GoToAsync(\"//assets\");          // абсолютный: заменить стек\nawait Shell.Current.GoToAsync(\"//assets/detail?id=42\");\nawait Shell.Current.GoToAsync(\"..\");                // назад (pop)\nawait Shell.Current.GoToAsync(\"../..\");             // на два уровня назад\n```\n\n- Маршрут без `//` в начале — **относительный**: push на текущий стек.\n- С `//` — **абсолютный**: переход на конкретную ветку навигации, стек очищается.\n- `..` — назад; `../path` — назад и потом вперёд по новому пути.\n- Параметры — query-string (`?id=42&mode=edit`).\n\n## Регистрация маршрутов для деталей\n\nСтраницы, на которые переходим программно (не через табы), регистрируются вручную в конструкторе `AppShell`:\n\n```csharp\npublic AppShell()\n{\n    InitializeComponent();\n    Routing.RegisterRoute(\"assetDetail\", typeof(AssetDetailPage));\n    Routing.RegisterRoute(\"addAsset\", typeof(AddAssetPage));\n    Routing.RegisterRoute(\"editAsset\", typeof(EditAssetPage));\n}\n```\n\nТолько после этого `Shell.Current.GoToAsync(\"assetDetail?id=42\")` найдёт страницу.\n\n## Передача параметров: [QueryProperty]\n\nПараметры из URI принимает **view-model** (а не страница — это важно для MVVM):\n\n```csharp\n[QueryProperty(nameof(AssetId), \"id\")]\npublic partial class AssetDetailVM : ObservableObject\n{\n    [ObservableProperty]\n    private int _assetId;\n\n    partial void OnAssetIdChanged(int value) => LoadCommand.Execute(null);\n\n    [RelayCommand]\n    private async Task LoadAsync()\n    {\n        Asset = await _repo.GetByIdAsync(AssetId);\n    }\n}\n```\n\n`[QueryProperty(nameof(AssetId), \"id\")]` — при переходе `?id=42` в свойство `AssetId` попадёт `42`. Shell сам приведёт string → int, если тип простой.\n\nЧтобы это работало, нужно:\n\n1. Зарегистрировать страницу в DI вместе с view-model (`builder.Services.AddTransient<AssetDetailVM>()`).\n2. Присвоить `BindingContext` в конструкторе страницы: `BindingContext = vm`.\n\n## Передача сложных объектов\n\nURL-параметры — только примитивы. Чтобы передать объект, используют `IQueryAttributable`:\n\n```csharp\npublic partial class AssetDetailVM : ObservableObject, IQueryAttributable\n{\n    public void ApplyQueryAttributes(IDictionary<string, object> query)\n    {\n        if (query.TryGetValue(\"asset\", out var a) && a is Asset asset)\n            Asset = asset;\n    }\n}\n```\n\n```csharp\nawait Shell.Current.GoToAsync(\"assetDetail\", new Dictionary<string, object>\n{\n    [\"asset\"] = selectedAsset\n});\n```\n\nПрактично, когда открываем карточку из списка — не надо повторно лезть в БД.\n\n## Модальные страницы\n\nМодалка поверх текущей (без «назад» в обычном стеке):\n\n```csharp\nawait Shell.Current.GoToAsync(\"addAsset\");\n// или Navigation.PushModalAsync(new AddAssetPage());\n```\n\n`Shell.PresentationMode=\"Modal\"` задаётся на странице или при `GoToAsync` через query-параметр `?modal=true`. На Android это fullscreen-оверлей, на Windows — dialog.\n\n## Пример полного флоу\n\n```csharp\n// CollectionView tap → открыть детали\n[RelayCommand]\nprivate async Task OpenAsync(Asset asset) =>\n    await Shell.Current.GoToAsync($\"assetDetail?id={asset.Id}\");\n\n// Страница AssetDetail — кнопка «назад» сохраняет и возвращается\n[RelayCommand]\nprivate async Task SaveAsync()\n{\n    await _repo.UpdateAsync(Asset);\n    await Shell.Current.GoToAsync(\"..\");\n}\n```\n\n## Back-кнопка и отмена несохранённых изменений\n\nShell сам рисует кнопку «назад». Перехватить жест можно через `OnBackButtonPressed()` на странице или `Shell.BackButtonBehavior`:\n\n```xml\n<ContentPage.BackButtonBehavior>\n    <BackButtonBehavior Command=\"{Binding ConfirmExitCommand}\" />\n</ContentPage.BackButtonBehavior>\n```\n\n## Что запомнить\n\n- Один `AppShell` на приложение — описывает табы/flyout, регистрирует маршруты.\n- `Shell.Current.GoToAsync(\"route?id=42\")` — навигация; `..` — назад.\n- `ContentTemplate=\"{DataTemplate ...}\"` — ленивое создание страниц.\n- Параметры принимает view-model через `[QueryProperty]` или `IQueryAttributable`.\n- Регистрируй маршруты деталей в `Routing.RegisterRoute(...)` в конструкторе `AppShell`."
+  },
+  "practice": [
+    {
+      "id": "shell-tabs-and-detail",
+      "title": "Табы + переход на карточку",
+      "goal": "Настроить Shell с двумя вкладками, зарегистрировать детальный маршрут и передать в него id через query.",
+      "steps": [
+        {
+          "id": "configure-shell",
+          "instruction": "В `AppShell.xaml` опиши `TabBar` с двумя `ShellContent` (Assets, Requests). В `AppShell.xaml.cs` зарегистрируй маршрут `assetDetail`.",
+          "code": {
+            "language": "xaml",
+            "full": "<!-- AppShell.xaml -->\n<Shell xmlns=\"http://schemas.microsoft.com/dotnet/2021/maui\"\n       xmlns:x=\"http://schemas.microsoft.com/winfx/2009/xaml\"\n       xmlns:views=\"clr-namespace:KmgAssets.Views\"\n       x:Class=\"KmgAssets.AppShell\"\n       Title=\"KMG Assets\">\n    <TabBar>\n        <ShellContent Title=\"Активы\"\n                      ContentTemplate=\"{DataTemplate views:AssetsPage}\"\n                      Route=\"assets\" />\n        <ShellContent Title=\"Заявки\"\n                      ContentTemplate=\"{DataTemplate views:RequestsPage}\"\n                      Route=\"requests\" />\n    </TabBar>\n</Shell>\n\n<!-- AppShell.xaml.cs -->\n<!--\npublic partial class AppShell : Shell\n{\n    public AppShell()\n    {\n        InitializeComponent();\n        Routing.RegisterRoute(\"assetDetail\", typeof(Views.AssetDetailPage));\n        Routing.RegisterRoute(\"addAsset\", typeof(Views.AddAssetPage));\n    }\n}\n-->",
+            "explanation": "Табы для основных разделов регистрируются декларативно в XAML, детальные страницы — программно в `RegisterRoute`. `ContentTemplate={DataTemplate ...}` гарантирует ленивое создание: `AssetsPage` инстанцируется только когда пользователь открывает вкладку."
+          },
+          "hints": [
+            "Если `AssetDetailPage` не открывается — забыл зарегистрировать маршрут.",
+            "Иконки вкладок добавляются через `Icon=\"assets.png\"` — PNG из `Resources/Images/`."
+          ]
+        },
+        {
+          "id": "query-property-vm",
+          "instruction": "Создай `AssetDetailVM` с `[QueryProperty]` для `AssetId`. При изменении id — загружает данные из репозитория.",
+          "code": {
+            "language": "csharp",
+            "full": "using CommunityToolkit.Mvvm.ComponentModel;\nusing CommunityToolkit.Mvvm.Input;\nusing KmgAssets.Models;\n\nnamespace KmgAssets.ViewModels;\n\n[QueryProperty(nameof(AssetId), \"id\")]\npublic partial class AssetDetailVM : ObservableObject\n{\n    private readonly IAssetRepository _repo;\n\n    public AssetDetailVM(IAssetRepository repo) => _repo = repo;\n\n    [ObservableProperty]\n    private int _assetId;\n\n    [ObservableProperty]\n    private Asset? _asset;\n\n    partial void OnAssetIdChanged(int value) => LoadCommand.Execute(null);\n\n    [RelayCommand]\n    private async Task LoadAsync()\n    {\n        Asset = await _repo.GetByIdAsync(AssetId);\n    }\n\n    [RelayCommand]\n    private async Task SaveAsync()\n    {\n        if (Asset is null) return;\n        await _repo.UpdateAsync(Asset);\n        await Shell.Current.GoToAsync(\"..\");\n    }\n\n    [RelayCommand]\n    private Task CancelAsync() => Shell.Current.GoToAsync(\"..\");\n}",
+            "explanation": "`[QueryProperty(\"AssetId\", \"id\")]` связывает параметр URL `?id=42` со свойством `AssetId`. Хук `OnAssetIdChanged` сработает после того, как Shell впрысет значение, и запустит загрузку. Метод `SaveAsync` после успеха возвращается назад через `..`."
+          },
+          "hints": [
+            "Порядок: конструктор → свойства-параметры заполняются → `OnXxxChanged`. `LoadAsync` нельзя звать в конструкторе — `AssetId` ещё не установлен.",
+            "Если параметров несколько — нужно несколько атрибутов `[QueryProperty]` или один `IQueryAttributable`."
+          ]
+        },
+        {
+          "id": "navigate-with-id",
+          "instruction": "В `AssetsPageVM.OpenAsync` замени `DisplayAlert` на `Shell.Current.GoToAsync` с передачей id выбранного актива.",
+          "code": {
+            "language": "csharp",
+            "full": "[RelayCommand]\nprivate async Task OpenAsync(Asset? asset)\n{\n    if (asset is null) return;\n    await Shell.Current.GoToAsync($\"assetDetail?id={asset.Id}\");\n}",
+            "explanation": "Параметр `Asset?` — `SelectionChangedCommandParameter` передаёт `SelectedItem`, который может быть `null` (при снятии выделения). Query-параметр `id={asset.Id}` попадёт в `AssetDetailVM.AssetId` через `[QueryProperty]`."
+          },
+          "hints": [
+            "Если нужно передать сам объект целиком (без повторного запроса к БД) — используй `GoToAsync(\"assetDetail\", new Dictionary<string, object> { [\"asset\"] = asset })` и `IQueryAttributable` в view-model.",
+            "После возврата `..` с `AssetDetail` выделение в CollectionView стоит сбрасывать — установить `SelectedAsset = null` в конце `OpenAsync`."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": [
+    "task-session-1-kmg-assets",
+    "task-session-2-emergency-maintenance",
+    "task-session-3-preventive-maintenance",
+    "task-session-4-inventory-warehouse",
+    "task-session-5-inventory-dashboard"
+  ],
+  "prerequisites": ["06-mvvm-toolkit", "07-collectionview"]
+}

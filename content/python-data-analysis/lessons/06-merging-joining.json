@@ -1,0 +1,59 @@
+{
+  "id": "06-merging-joining",
+  "moduleId": "python-data-analysis",
+  "title": "Объединение DataFrame: merge, join, concat",
+  "summary": "Метод `pd.merge` (inner/left/right/outer), `DataFrame.join` (по индексу), `pd.concat` для склейки по оси. Ключи на одинаковые и разные имена (`left_on`/`right_on`), суффиксы конфликтующих колонок. Проверка результата через `indicator` и `validate`. Python 3.13+, pandas последней стабильной версии.",
+  "estimatedMinutes": 40,
+  "theory": {
+    "kind": "inline",
+    "value": "# Объединение DataFrame\n\nДанные почти никогда не лежат в одной таблице. В Session 6 их ровно три: `transactions`, `products`, `partners`. Чтобы посчитать выручку по городу партнёра или по категории продукта, их нужно **соединить**. Это аналог SQL-джойнов — и pandas даёт те же 4 режима (inner/left/right/outer).\n\n## `pd.merge` — основной инструмент\n\n```python\nmerged = pd.merge(transactions, partners, on='partner_id', how='left')\n```\n\nПараметры:\n\n- `on` — имя колонки-ключа (одинаковое в обеих таблицах).\n- `left_on` / `right_on` — если имена ключей разные.\n- `how` — тип джойна:\n  - `'inner'` (по умолчанию) — только совпавшие строки.\n  - `'left'` — все строки левой таблицы, в правой `NaN` для несовпавших.\n  - `'right'` — зеркально.\n  - `'outer'` — все строки обеих таблиц.\n\nТипичный сценарий для Session 6 — `left` от `transactions`: мы хотим все транзакции, и для каждой подтянуть информацию о партнёре и продукте. Если партнёра нет в справочнике — это проблема (invalid ID), которую надо увидеть.\n\n### Разные имена ключей\n\n```python\n# в transactions — product_id; в продуктах — id\nmerged = pd.merge(\n    transactions, products,\n    left_on='product_id', right_on='id',\n    how='left'\n)\n```\n\nПосле этого у вас будут обе колонки — `product_id` и `id`. Одну обычно дропают: `.drop(columns='id')`.\n\n### Конфликты имён и `suffixes`\n\nЕсли в обеих таблицах есть колонка с одинаковым именем (и она **не** ключ), pandas добавит суффиксы: `_x` / `_y`. Лучше задать явные:\n\n```python\nmerged = pd.merge(\n    transactions, partners,\n    on='partner_id',\n    suffixes=('_tx', '_partner'),\n    how='left'\n)\n```\n\n### Многоключевой джойн\n\n```python\n# по (partner_id, date)\npd.merge(a, b, on=['partner_id', 'date'], how='inner')\n```\n\n## Проверка результата: `indicator` и `validate`\n\nЭто то, что отличает уверенный анализ от неуверенного.\n\n### `indicator=True`\n\nДобавляет служебную колонку `_merge` со значениями `'both'` / `'left_only'` / `'right_only'`:\n\n```python\nmerged = pd.merge(\n    transactions, partners,\n    on='partner_id',\n    how='left',\n    indicator=True\n)\n\nprint(merged['_merge'].value_counts())\n# если 'left_only' > 0 — у части транзакций нет партнёра (плохо)\n```\n\n### `validate`\n\nПроверяет ожидаемое отношение между таблицами. Если нарушено — бросит ошибку:\n\n```python\npd.merge(\n    transactions, partners,\n    on='partner_id',\n    how='left',\n    validate='many_to_one'\n)\n```\n\n`many_to_one` — «в левой таблице может быть много строк на один id, в правой — ровно одна» (это правильное ожидание для `transactions` ↔ `partners`). Если в `partners` вдруг окажется дубликат — `validate` об этом скажет сразу. Без `validate` вы просто получили бы удвоенную выручку в отчёте.\n\nВарианты: `'one_to_one'`, `'one_to_many'`, `'many_to_one'`, `'many_to_many'`.\n\n## `DataFrame.join` — ярлык для джойна по индексу\n\nЕсли справочник уже проиндексирован по id, можно короче:\n\n```python\nproducts_indexed = products.set_index('id')\ntransactions.join(products_indexed, on='product_id', how='left')\n```\n\nНо `merge` работает почти везде — просто держите в голове как короткий вариант.\n\n## `pd.concat` — склейка «сверху вниз» или «сбоку»\n\nКогда таблицы имеют **одинаковую структуру** и нужно объединить их в одну:\n\n```python\n# вертикально: склеить 12 файлов по месяцам\nall_months = pd.concat([jan, feb, mar, ...], ignore_index=True)\n```\n\n`ignore_index=True` — чтобы не тащить старые индексы (иначе получатся дубликаты индекса 0, 1, 2, ...).\n\nГоризонтальная склейка (`axis=1`) существует, но почти всегда это завуалированный `merge` — используйте `merge`.\n\n## Частые подвохи\n\n1. **Дубликаты в правой таблице.** `left` + дубли справа → левые строки размножатся. Ловится через `validate='many_to_one'` или проверкой `len(merged) == len(left)`.\n2. **Разные типы ключа.** `'001'` (строка) и `1` (число) — pandas не считает это совпадением, джойн даст пустоту. Всегда проверяйте `dtype` ключа с обеих сторон.\n3. **Пробелы в ключах.** `'P001 '` vs `'P001'`. Профилактика — `.str.strip()` на всех строковых ключах перед merge.\n\n## Шаблон для Session 6\n\n```python\nfull = (\n    transactions\n    .merge(partners.add_prefix('partner_'),\n           left_on='partner_id', right_on='partner_partner_id',\n           how='left', validate='many_to_one')\n    .merge(products.add_prefix('product_'),\n           left_on='product_id', right_on='product_id',\n           how='left', validate='many_to_one')\n)\n```\n\nВариант с `add_prefix` — быстрый способ избежать конфликтов имён без перечисления `suffixes` по колонкам.\n\n## Что запомнить\n\n- `pd.merge(a, b, on=..., how=...)` — основной инструмент; 4 режима `how`.\n- Разные имена ключей — `left_on`/`right_on`.\n- Одинаковые имена у не-ключей — управляйте через `suffixes`.\n- `indicator=True` и `validate='...'` — тонкие инструменты, которые ловят баги джойнов; используйте их всегда, когда соединяете реальные данные.\n- Проверяйте типы ключа с обеих сторон до `merge`.\n- `pd.concat([...], ignore_index=True)` — склейка однотипных таблиц по строкам."
+  },
+  "practice": [
+    {
+      "id": "join-three-tables",
+      "title": "Джойн трёх таблиц Session 6",
+      "goal": "Собрать «широкую» таблицу транзакций с данными партнёров и продуктов, проверить корректность связок.",
+      "steps": [
+        {
+          "id": "left-merge-with-validate",
+          "instruction": "Присоедините `partners` к `transactions` левым джойном по `partner_id` с валидацией `many_to_one` и индикатором.",
+          "code": {
+            "language": "python",
+            "full": "import pandas as pd\n\ntransactions = pd.read_csv('sales_transactions_cleaned.csv', dtype={'partner_id': str, 'product_id': str})\npartners = pd.read_csv('partners_KMG.csv', dtype={'partner_id': str})\n\nenriched = pd.merge(\n    transactions, partners,\n    on='partner_id',\n    how='left',\n    validate='many_to_one',\n    indicator=True\n)\n\nprint(enriched['_merge'].value_counts())\nprint(len(enriched), 'vs', len(transactions))",
+            "explanation": "Если `len(enriched) != len(transactions)` — в partners есть дубли partner_id. `validate` бросит ошибку до этого. `indicator` покажет, сколько транзакций не нашли своего партнёра."
+          },
+          "hints": [
+            "Если `validate` бросил — сначала почистите partners: `partners = partners.drop_duplicates(subset='partner_id', keep='last')`.",
+            "Если в `_merge` есть `left_only` — это invalid partner_id в транзакциях (отдельный deliverable в Task 1.1)."
+          ]
+        },
+        {
+          "id": "add-products",
+          "instruction": "Добавьте к полученной таблице информацию о продукте (имя и цена) через второй `merge`, избегая конфликта имён колонок.",
+          "code": {
+            "language": "python",
+            "full": "products = pd.read_csv('products_KMG.csv', dtype={'product_id': str})\n\nfull = enriched.drop(columns='_merge').merge(\n    products[['product_id', 'name', 'price']].rename(\n        columns={'name': 'product_name', 'price': 'product_price'}\n    ),\n    on='product_id',\n    how='left',\n    validate='many_to_one'\n)\n\nprint(full.columns.tolist())\nprint(full.head(3))",
+            "explanation": "Переименование колонок справа перед merge — более прозрачный способ избежать конфликтов, чем `suffixes`. В партнёрах уже есть `name` (имя партнёра), а у продуктов тоже `name` — поэтому переименовываем заранее."
+          },
+          "hints": [
+            "Если хотите джойнить одно подмножество колонок справа — `products[['product_id', ...]]` перед merge.",
+            "`drop(columns='_merge')` нужно, чтобы индикаторная колонка из первого merge не осталась в итоговой таблице."
+          ]
+        },
+        {
+          "id": "revenue-by-city",
+          "instruction": "Пользуясь `full`, посчитайте общую выручку по городу партнёра и отсортируйте по убыванию.",
+          "code": {
+            "language": "python",
+            "full": "revenue_by_city = (\n    full\n    .groupby('city', dropna=False)['amount']\n    .sum()\n    .sort_values(ascending=False)\n    .reset_index(name='total_amount')\n)\n\nprint(revenue_by_city.head(10))",
+            "explanation": "`dropna=False` в `groupby` сохраняет группу с `NaN`-городом (транзакции партнёров, которых не нашли в справочнике) — вы увидите, сколько «висит в воздухе» и сможете решить, что с этим делать."
+          },
+          "hints": [
+            "Если в `city` неожиданно много `NaN` — это обычно симптом: справочник partners неполный, либо `partner_id` не совпадают по типу."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": ["task-session-6-data-analysis"]
+}

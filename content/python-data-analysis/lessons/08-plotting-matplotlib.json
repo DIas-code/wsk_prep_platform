@@ -1,0 +1,59 @@
+{
+  "id": "08-plotting-matplotlib",
+  "moduleId": "python-data-analysis",
+  "title": "Визуализация: matplotlib и pandas.plot",
+  "summary": "Построение линейных графиков, гистограмм, столбчатых диаграмм через `df.plot` и `matplotlib.pyplot`. Настройка заголовка, осей, легенды, цветов. Сохранение в PNG. Python 3.13+, pandas последней стабильной версии, matplotlib 3.9+.",
+  "estimatedMinutes": 35,
+  "theory": {
+    "kind": "inline",
+    "value": "# Визуализация\n\nАналитика без графиков — это ряды чисел, которые никто не читает. В Session 6 визуализации — отдельные deliverables (`.png` файлы), и они оцениваются по KMG Style Guide: заголовок, подписи осей, легенда, единицы измерения.\n\nОсновной инструмент — **matplotlib**. pandas предоставляет удобную обёртку `df.plot`, которая внутри использует matplotlib и подходит для 80 % случаев.\n\n## Два уровня API matplotlib\n\n1. **pyplot (state-based)** — короткий стиль, один «текущий» график:\n\n```python\nimport matplotlib.pyplot as plt\n\nplt.plot(daily.index, daily.values)\nplt.title('Daily sales')\nplt.show()\n```\n\n2. **OO API** — явный `Figure` и `Axes`, предпочтителен для чего угодно серьёзного:\n\n```python\nfig, ax = plt.subplots(figsize=(10, 4))\nax.plot(daily.index, daily.values)\nax.set_title('Daily sales')\nax.set_xlabel('Date')\nax.set_ylabel('Amount, тенге')\nfig.tight_layout()\nfig.savefig('daily_sales.png', dpi=150)\n```\n\nДля отчётов Session 6 — используйте OO API. Он управляемее, проще делать несколько графиков на одной фигуре, легче сохранять.\n\n## `df.plot` — через pandas\n\nКороче и часто достаточно:\n\n```python\nax = daily.plot(figsize=(10, 4), title='Daily sales')\nax.set_xlabel('Date')\nax.set_ylabel('Amount, тенге')\nax.figure.savefig('daily_sales.png', dpi=150)\n```\n\n`df.plot` возвращает `Axes`, через него дальше настраиваете заголовок/оси, через `ax.figure` — сохраняете.\n\n## Виды графиков\n\n```python\ndaily.plot(kind='line')         # по умолчанию\nsummary.plot(kind='bar')        # столбцы\nsummary.plot(kind='barh')       # горизонтальные\ndf['amount'].plot(kind='hist', bins=30)  # гистограмма\ndf.plot(kind='scatter', x='age', y='amount')\npd.Series(shares).plot(kind='pie', autopct='%1.1f%%')\n```\n\nТе же методы есть как `.plot.line()`, `.plot.bar()`, `.plot.hist()`, `.plot.scatter()` — можно писать и так.\n\n## Несколько рядов на одном графике\n\n```python\ndf = pd.DataFrame({'daily': daily, 'ma7': daily.rolling(7).mean()})\nax = df.plot(figsize=(10, 4))\nax.set_title('Daily sales with 7-day MA')\nax.legend(loc='upper left')\n```\n\npandas сам нарисует каждую колонку своим цветом и подставит имена в легенду.\n\n## Несколько субплотов\n\n```python\nfig, axes = plt.subplots(2, 1, figsize=(10, 6), sharex=True)\ndaily.plot(ax=axes[0], title='Daily')\ndaily.rolling(7).mean().plot(ax=axes[1], title='7-day MA')\nfig.tight_layout()\n```\n\n`sharex=True` синхронизирует ось X — удобно, когда ряды на одном периоде.\n\n## Формат осей\n\n### Даты\n\nmatplotlib умно выбирает шаг тиков. Если дат много (>год), подписи могут перекрываться — поверните их:\n\n```python\nfig, ax = plt.subplots(figsize=(10, 4))\ndaily.plot(ax=ax)\nax.tick_params(axis='x', rotation=45)\n```\n\nИли задайте форматтер:\n\n```python\nfrom matplotlib.dates import DateFormatter\nax.xaxis.set_major_formatter(DateFormatter('%Y-%m'))\n```\n\n### Числа с большими значениями\n\nРазделитель тысяч:\n\n```python\nax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f'{v:,.0f}'))\n```\n\n## Цвета и стили\n\n### Готовые стили\n\n```python\nplt.style.use('seaborn-v0_8-whitegrid')  # или 'ggplot', 'bmh'\n```\n\nВызывайте один раз в начале скрипта. Полный список: `plt.style.available`.\n\n### Цвета вручную\n\n```python\ndaily.plot(color='#1f77b4', linewidth=2)\n\n# для нескольких рядов — список\ndf.plot(color=['#1f77b4', '#ff7f0e'])\n```\n\nKMG обычно использует корпоративные цвета — согласуйте с Style Guide сессии. Один из стандартных: `#003f7f` (тёмно-синий) + `#d62728` (акцент).\n\n## Сохранение\n\n```python\nfig.savefig('chart.png', dpi=150, bbox_inches='tight')\n```\n\n- `dpi=150` — хорошее качество для отчётов. `dpi=300` — печатное.\n- `bbox_inches='tight'` — обрезать лишние поля.\n- Формат выбирается по расширению: `.png`, `.svg`, `.pdf`.\n\nПосле `savefig` не забудьте `plt.close(fig)` — если генерите много графиков в цикле, память кончится.\n\n## Частые подвохи\n\n1. **График пустой.** Забыли `plt.show()` в интерактивной сессии, или вызвали `plt.plot()` после `plt.show()` из предыдущей фигуры — та закрылась. В скриптах лучше OO API: `fig.savefig(...)` не зависит от «текущего состояния».\n2. **Подписи обрезаются.** `fig.tight_layout()` или `bbox_inches='tight'` при сохранении.\n3. **Русский текст квадратами.** Шрифт по умолчанию не всегда поддерживает кириллицу. `plt.rcParams['font.family'] = 'DejaVu Sans'` в начале скрипта.\n4. **Гистограмма «лесенкой».** Проверьте `bins` — по умолчанию 10, для ровных данных можно мало, для плотных — `bins=30–50`.\n\n## Что запомнить\n\n- Для отчётов: OO API (`fig, ax = plt.subplots(...)`), не pyplot.\n- `df.plot` короче и годится для большинства задач.\n- Всегда: заголовок, подписи осей с единицами, легенда (если рядов > 1).\n- `fig.tight_layout()` + `fig.savefig(..., dpi=150, bbox_inches='tight')` — канонический сценарий сохранения.\n- В цикле графиков — `plt.close(fig)` после сохранения, чтобы не утечь память.\n- Стиль задаётся один раз: `plt.style.use(...)`."
+  },
+  "practice": [
+    {
+      "id": "daily-chart",
+      "title": "График дневных продаж",
+      "goal": "Построить линейный график дневной выручки со скользящим средним и сохранить как PNG с подписанными осями.",
+      "steps": [
+        {
+          "id": "simple-line",
+          "instruction": "Постройте линейный график `daily` с заголовком и подписями осей, отобразите на экране.",
+          "code": {
+            "language": "python",
+            "full": "import matplotlib.pyplot as plt\nimport pandas as pd\n\n# daily подготовлен в уроке 07\n\nfig, ax = plt.subplots(figsize=(10, 4))\ndaily.plot(ax=ax, color='#003f7f')\nax.set_title('Ежедневная выручка KMG, 2025')\nax.set_xlabel('Дата')\nax.set_ylabel('Выручка, тенге')\nax.grid(True, alpha=0.3)\nfig.tight_layout()\nplt.show()",
+            "explanation": "`grid(True, alpha=0.3)` — лёгкая сетка для чтения значений. Фиксированный размер фигуры `(10, 4)` — соотношение сторон, в котором временной ряд читается лучше всего."
+          },
+          "hints": [
+            "В скрипте `plt.show()` не нужен — он блокирует выполнение. Для отчёта сразу переходите к `savefig`.",
+            "Если подписи по оси X сливаются — `ax.tick_params(axis='x', rotation=45)`."
+          ]
+        },
+        {
+          "id": "two-series",
+          "instruction": "Добавьте второй ряд — 7-дневное скользящее среднее — с другим цветом и легендой.",
+          "code": {
+            "language": "python",
+            "full": "df = pd.DataFrame({\n    'Дневная выручка': daily,\n    '7-дневное среднее': daily.rolling(7).mean(),\n})\n\nfig, ax = plt.subplots(figsize=(10, 4))\ndf.plot(ax=ax, color=['#003f7f', '#d62728'], linewidth=[1, 2])\nax.set_title('Ежедневная выручка KMG со сглаживанием')\nax.set_xlabel('Дата')\nax.set_ylabel('Выручка, тенге')\nax.legend(loc='upper left')\nax.grid(True, alpha=0.3)\nfig.tight_layout()\nplt.show()",
+            "explanation": "Имена колонок в DataFrame становятся подписями в легенде — поэтому сразу называйте их по-человечески. Толщина 2 у сглаживания подчёркивает, что это главная линия; дневные значения — тоньше, как фон."
+          },
+          "hints": [
+            "Если цвета не меняются — проверьте, что вы действительно передали `color` списком (по количеству колонок)."
+          ]
+        },
+        {
+          "id": "save-png",
+          "instruction": "Сохраните график в `daily_sales.png` с DPI 150 и обрезанными полями, закройте фигуру.",
+          "code": {
+            "language": "python",
+            "full": "fig.savefig('daily_sales.png', dpi=150, bbox_inches='tight')\nplt.close(fig)\n\nprint('saved: daily_sales.png')",
+            "explanation": "Для отчёта достаточно 150 DPI. `bbox_inches='tight'` — частый лайфхак, чтобы не обрезало подпись оси. `plt.close(fig)` освобождает память — незаметно, пока не генерите 100 графиков подряд в цикле."
+          },
+          "hints": [
+            "Хотите вектор — `fig.savefig('daily_sales.svg')`, расширение определит формат.",
+            "Если PDF нужен — тоже достаточно заменить расширение на `.pdf`."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": ["task-session-6-data-analysis"]
+}

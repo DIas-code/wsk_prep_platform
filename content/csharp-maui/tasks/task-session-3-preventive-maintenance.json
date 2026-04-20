@@ -5,7 +5,17 @@
   "overview": "Session 3 — **плановое (preventive) обслуживание** активов KMG. PM-задачи — это регулярные работы (инспекции, смазка, замена масла), которые повторяются по времени (ежедневно/еженедельно/ежемесячно) или по пробегу (каждые N км).\n\nAndroid-приложение подключается к БД `Session3` через Web API, показывает техникам активные задачи, позволяет отмечать выполненные и создавать новые PM-расписания, которые автогенерируют набор задач в БД.",
   "difficulty": "championship",
   "relatedModule": "csharp-maui",
-  "relatedLessons": [],
+  "relatedLessons": [
+    "03-layout-containers",
+    "04-controls-catalog",
+    "05-data-binding",
+    "06-mvvm-toolkit",
+    "07-collectionview",
+    "08-shell-navigation",
+    "10-validation",
+    "12-ef-core-sqlserver",
+    "15-platform-specifics"
+  ],
   "timeLimitMinutes": 300,
   "sections": [
     {

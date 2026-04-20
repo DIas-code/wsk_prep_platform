@@ -11,6 +11,8 @@ export interface LessonProgress {
 
 export interface TaskProgress {
   attemptedAt?: string;
+  /** ISO timestamp when the student started the timer for this task. Undefined = not started. */
+  startedAt?: string;
   completedAt?: string;
   /** Optional self-reported score (0-100) for now; a grader can replace this later. */
   selfScore?: number;

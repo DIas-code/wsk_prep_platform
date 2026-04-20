@@ -7,9 +7,9 @@ import {
   validateTask,
 } from "./validators";
 
-import validModule from "../../content/maui-sqlserver/module.json" with { type: "json" };
-import validLesson from "../../content/maui-sqlserver/lessons/01-intro-to-maui.json" with { type: "json" };
-import validTask from "../../content/maui-sqlserver/tasks/task-001-first-maui-app.json" with { type: "json" };
+import validModule from "../../content/csharp-maui/module.json" with { type: "json" };
+import validLesson from "../../content/csharp-maui/lessons/01-intro-to-maui.json" with { type: "json" };
+import validTask from "../../content/csharp-maui/tasks/task-session-1-kmg-assets.json" with { type: "json" };
 
 describe("validateModule", () => {
   it("accepts a well-formed module", () => {

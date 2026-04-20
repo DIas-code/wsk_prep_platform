@@ -8,7 +8,17 @@
     "03-layout-containers",
     "04-controls-catalog",
     "05-data-binding",
-    "06-mvvm-toolkit"
+    "06-mvvm-toolkit",
+    "07-collectionview",
+    "08-shell-navigation",
+    "09-sqlserver-ado",
+    "10-validation",
+    "11-styles-themes",
+    "12-ef-core-sqlserver",
+    "13-stored-procedures-reports",
+    "14-auth-and-roles",
+    "15-platform-specifics",
+    "16-packaging-publishing"
   ],
   "taskIds": [
     "task-session-1-kmg-assets",

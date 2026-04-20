@@ -1,0 +1,59 @@
+{
+  "id": "11-arima-forecasting",
+  "moduleId": "python-data-analysis",
+  "title": "ARIMA-прогноз с statsmodels",
+  "summary": "Прогнозирование временного ряда: стационарность (`adfuller`), подбор `(p, d, q)` (ACF/PACF, `pmdarima.auto_arima`), обучение `ARIMA`, прогноз на горизонт с доверительными интервалами. Python 3.13+, statsmodels последней стабильной версии, опционально pmdarima.",
+  "estimatedMinutes": 55,
+  "theory": {
+    "kind": "inline",
+    "value": "# ARIMA-прогноз временного ряда\n\nARIMA (**AutoRegressive Integrated Moving Average**) — классический метод прогнозирования. В Session 6 он нужен для прогноза дневной выручки на 30 дней вперёд с доверительными интервалами.\n\nНе обязательно понимать математику до каждого коэффициента — но базовая интуиция важна, иначе вы не отличите плохую модель от хорошей.\n\n## Три числа: `(p, d, q)`\n\n- **p** — порядок авторегрессии. Сколько прошлых значений ряда участвуют в прогнозе.\n- **d** — порядок дифференцирования. Сколько раз ряд продифференцирован, чтобы стать стационарным.\n- **q** — порядок скользящего среднего. Сколько прошлых **ошибок** модели участвуют.\n\nХороший старт: `(1, 1, 1)`, `(2, 1, 2)`. Не надо угадывать с нуля — есть процедуры подбора.\n\n## Стационарность\n\nARIMA требует стационарный ряд (постоянное среднее и дисперсия во времени). Выручка обычно **не** стационарна: есть тренд, сезонность, рост со временем. Поэтому в названии есть `I` — integrated — это про дифференцирование ряда.\n\n### Проверка — ADF-тест\n\n```python\nfrom statsmodels.tsa.stattools import adfuller\n\nresult = adfuller(daily)\nprint(f'ADF статистика: {result[0]:.3f}')\nprint(f'p-value: {result[1]:.3f}')\nprint('стационарен' if result[1] < 0.05 else 'нестационарен')\n```\n\nЕсли `p-value < 0.05` — отвергаем гипотезу «нестационарности», ряд условно стационарен (можно ставить `d=0`). Иначе — дифференцируем и пробуем снова:\n\n```python\nd1 = daily.diff().dropna()\nresult = adfuller(d1)\n```\n\nОбычно `d=1` хватает для выручки с трендом. `d=2` нужно редко.\n\n## ACF / PACF\n\nАвтокорреляционная и частично-автокорреляционная функции помогают выбрать `p` и `q`:\n\n```python\nfrom statsmodels.graphics.tsaplots import plot_acf, plot_pacf\n\nimport matplotlib.pyplot as plt\n\nfig, axes = plt.subplots(1, 2, figsize=(12, 4))\nplot_acf(daily.diff().dropna(), lags=30, ax=axes[0])\nplot_pacf(daily.diff().dropna(), lags=30, ax=axes[1])\nfig.tight_layout()\nfig.savefig('acf_pacf.png', dpi=150)\n```\n\nИнтерпретация по классике:\n\n- Если PACF обрывается резко после lag `p` → это `AR(p)` (берите `q=0`).\n- Если ACF обрывается резко после lag `q` → это `MA(q)` (берите `p=0`).\n- Если обе затухают плавно → смешанная модель, пробуйте `(1,d,1)`, `(2,d,2)`.\n\nНа практике вы сразу применяете `auto_arima`, а ACF/PACF оставляете для отчёта-оправдания.\n\n## Автоподбор: `pmdarima.auto_arima`\n\nБиблиотека `pmdarima` (`pip install pmdarima`) перебирает `(p, d, q)` по AIC и выбирает лучшее:\n\n```python\nimport pmdarima as pm\n\nauto_model = pm.auto_arima(\n    daily,\n    start_p=0, max_p=5,\n    start_q=0, max_q=5,\n    d=None,              # пусть подберёт сам через KPSS-тест\n    seasonal=False,      # для дневных 30 дней горизонта сезонность часто можно не учитывать\n    stepwise=True,\n    suppress_warnings=True,\n    error_action='ignore',\n)\nprint(auto_model.summary())\nprint(auto_model.order)  # кортеж (p, d, q)\n```\n\n`stepwise=True` — не полный перебор, а умный жадный (быстрее в 10+ раз при сравнимом качестве).\n\nЕсли `pmdarima` устанавливать не хотите — подбирайте руками или через цикл по AIC:\n\n```python\nfrom statsmodels.tsa.arima.model import ARIMA\n\nbest = None\nfor p in range(4):\n    for d in range(3):\n        for q in range(4):\n            try:\n                model = ARIMA(daily, order=(p, d, q)).fit()\n                if best is None or model.aic < best[0]:\n                    best = (model.aic, (p, d, q), model)\n            except Exception:\n                pass\nprint(best[1], 'AIC =', best[0])\n```\n\n## Обучение и прогноз\n\n```python\nfrom statsmodels.tsa.arima.model import ARIMA\n\norder = (1, 1, 2)  # подобранный набор\nmodel = ARIMA(daily, order=order).fit()\nprint(model.summary())\n\nforecast = model.get_forecast(steps=30)\nmean = forecast.predicted_mean\nci = forecast.conf_int(alpha=0.05)  # 95 % интервал\n```\n\n`mean` — `Series` с 30 предсказаниями. `ci` — `DataFrame` с колонками `lower`, `upper`. Индексы у обоих — продолжение исходного ряда (следующие 30 дней).\n\n## Визуализация прогноза\n\n```python\nfig, ax = plt.subplots(figsize=(10, 4))\ndaily.plot(ax=ax, label='Исторические', color='#003f7f')\nmean.plot(ax=ax, label='Прогноз', color='#d62728')\nax.fill_between(ci.index, ci.iloc[:, 0], ci.iloc[:, 1], color='#d62728', alpha=0.2, label='95 % CI')\nax.set_title('Прогноз дневной выручки на 30 дней')\nax.set_xlabel('Дата')\nax.set_ylabel('Выручка, тенге')\nax.legend()\nax.grid(True, alpha=0.3)\nfig.tight_layout()\nfig.savefig('forecast.png', dpi=150)\n```\n\n`fill_between` закрашивает «веер» интервала — стандартный вид прогноза.\n\n## Оценка качества\n\nПростой приём — разбить ряд на train/test, обучить на train и сравнить прогноз с реальным test:\n\n```python\ntrain = daily[:-30]\ntest = daily[-30:]\n\nmodel = ARIMA(train, order=order).fit()\npred = model.get_forecast(steps=30).predicted_mean\n\nimport numpy as np\nrmse = np.sqrt(((pred - test) ** 2).mean())\nmape = (abs(pred - test) / test).mean() * 100\nprint(f'RMSE: {rmse:.2f}')\nprint(f'MAPE: {mape:.1f}%')\n```\n\nMAPE < 10 % — хорошо, 10–20 % — приемлемо, больше — модель слабая.\n\n## Частые подвохи\n\n1. **Ряд не регулярный.** ARIMA требует равномерных интервалов; пропущенные даты заполните нулями через `resample('D').sum()` (см. урок 07).\n2. **Слишком короткий ряд.** Для ARIMA нужно хотя бы ~100 точек. На 20 днях нет смысла.\n3. **Сезонность не учтена.** Если в ряде чёткая недельная сезонность (выходные резко ниже будней) — используйте SARIMA с `seasonal_order=(P, D, Q, 7)`.\n4. **Масштаб прогноза плоский.** Если `mean` превращается в почти прямую — модель «сдалась», попробуйте другой порядок или проверьте, сильно ли ряд шумный.\n\n## Что запомнить\n\n- ARIMA = три числа `(p, d, q)`. Стартуйте с `(1, 1, 1)`, подгоняйте через `auto_arima` или AIC.\n- Обязательно проверяйте стационарность через ADF и дифференцирование.\n- `get_forecast(steps=N)` даёт `predicted_mean` и `conf_int()` — всё, что нужно для графика.\n- Оценивайте качество через train/test split, RMSE и MAPE.\n- Сезонность (недельная/годовая) требует SARIMA, не ARIMA."
+  },
+  "practice": [
+    {
+      "id": "forecast-30-days",
+      "title": "Прогноз дневной выручки на 30 дней",
+      "goal": "Построить ARIMA-модель, выдать прогноз с 95 % доверительным интервалом и сохранить график и таблицу.",
+      "steps": [
+        {
+          "id": "check-stationarity",
+          "instruction": "Проверьте стационарность ряда `daily` ADF-тестом; если нестационарный, продифференцируйте и проверьте снова.",
+          "code": {
+            "language": "python",
+            "full": "from statsmodels.tsa.stattools import adfuller\n\ndef adf_report(series, name):\n    result = adfuller(series.dropna())\n    print(f'{name}: ADF={result[0]:.3f}, p-value={result[1]:.3f}, '\n          + ('стационарен' if result[1] < 0.05 else 'НЕстационарен'))\n\nadf_report(daily, 'daily')\nadf_report(daily.diff(), 'daily.diff()')",
+            "explanation": "Часто p-value у исходного ряда близко к 1 (нестационарный), а у `diff()` — < 0.05. Это означает `d=1` в ARIMA."
+          },
+          "hints": [
+            "Если после `d=1` ряд всё ещё нестационарный — дифференцируйте ещё раз (`daily.diff().diff()`) и проверьте. `d>2` почти не встречается."
+          ]
+        },
+        {
+          "id": "fit-arima",
+          "instruction": "Обучите ARIMA с порядком `(1, 1, 2)` (разумное начало) и выведите AIC.",
+          "code": {
+            "language": "python",
+            "full": "from statsmodels.tsa.arima.model import ARIMA\n\nmodel = ARIMA(daily, order=(1, 1, 2)).fit()\nprint(f'AIC: {model.aic:.2f}')\nprint(model.summary().tables[1])",
+            "explanation": "`summary().tables[1]` — компактно печатает только таблицу коэффициентов; полный `summary()` избыточен."
+          },
+          "hints": [
+            "AIC — чем меньше, тем лучше. Сравнивайте AIC для разных `order`, чтобы понять, какой лучше.",
+            "Если какой-то коэффициент p-value > 0.05 — он «не значим», попробуйте уменьшить порядок."
+          ]
+        },
+        {
+          "id": "forecast-and-plot",
+          "instruction": "Сделайте прогноз на 30 дней, нарисуйте график с 95 % доверительным интервалом, сохраните PNG и CSV.",
+          "code": {
+            "language": "python",
+            "full": "import matplotlib.pyplot as plt\nimport pandas as pd\n\nforecast = model.get_forecast(steps=30)\nmean = forecast.predicted_mean\nci = forecast.conf_int(alpha=0.05)\n\n# график\nfig, ax = plt.subplots(figsize=(10, 4))\ndaily.tail(60).plot(ax=ax, label='Факт (последние 60 дней)', color='#003f7f')\nmean.plot(ax=ax, label='Прогноз', color='#d62728')\nax.fill_between(ci.index, ci.iloc[:, 0], ci.iloc[:, 1], color='#d62728', alpha=0.2, label='95 % CI')\nax.set_title('Прогноз дневной выручки KMG на 30 дней')\nax.set_xlabel('Дата')\nax.set_ylabel('Выручка, тенге')\nax.legend()\nax.grid(True, alpha=0.3)\nfig.tight_layout()\nfig.savefig('forecast.png', dpi=150, bbox_inches='tight')\nplt.close(fig)\n\n# табличный экспорт\nout = pd.DataFrame({\n    'date': mean.index,\n    'forecast': mean.values,\n    'lower_95': ci.iloc[:, 0].values,\n    'upper_95': ci.iloc[:, 1].values,\n})\nout.to_csv('forecast.csv', index=False, encoding='utf-8-sig')\nprint(out.head())",
+            "explanation": "`daily.tail(60)` на графике — чтобы прогноз не терялся в «хвосте» длинного исторического ряда. Для CSV даты приводим к `index` + `values` чтобы получить чистый DataFrame для отчёта."
+          },
+          "hints": [
+            "Если хотите 90 % интервал вместо 95 — `alpha=0.10`.",
+            "Если доверительный интервал «разошёлся» очень широко — ряд шумный, модель не особо уверена в прогнозе; это честный сигнал, а не ошибка."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": ["task-session-6-data-analysis"]
+}

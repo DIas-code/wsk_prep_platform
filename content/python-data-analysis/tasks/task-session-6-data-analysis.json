@@ -5,7 +5,20 @@
   "overview": "Session 6 — **аналитический pipeline** на Python для KMG. 10 подзадач от загрузки и очистки данных до прогнозирования продаж (ARIMA), сегментации партнёров (K-means), расчёта PLTV и анализа оттока.\n\nИспользуемый стек: **Python 3.13+**, `pandas`, `matplotlib`, `scikit-learn`, `statsmodels`. Все визуализации подчиняются KMG Corporate Style Guide. Все результаты экспортируются как CSV или PDF.\n\nИсходные данные — 3 CSV файла:\n- `sales_transactions.csv` — транзакции продаж\n- `products_KMG.csv` — продукты\n- `partners_KMG.csv` — партнёры/контрагенты",
   "difficulty": "championship",
   "relatedModule": "python-data-analysis",
-  "relatedLessons": [],
+  "relatedLessons": [
+    "01-pandas-intro",
+    "02-loading-data",
+    "03-selecting-filtering",
+    "04-data-cleaning",
+    "05-groupby-aggregation",
+    "06-merging-joining",
+    "07-time-series",
+    "08-plotting-matplotlib",
+    "09-descriptive-stats-eda",
+    "10-kmeans-clustering",
+    "11-arima-forecasting",
+    "12-reporting-export"
+  ],
   "timeLimitMinutes": 300,
   "sections": [
     {

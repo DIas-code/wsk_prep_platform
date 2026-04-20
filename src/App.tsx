@@ -2,6 +2,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 import { ContentProvider } from "./ui/ContentContext";
 import { createViteContentLoader } from "./content/createViteContentLoader";
+import { DashboardPage } from "./pages/DashboardPage";
 import { HomePage } from "./pages/HomePage";
 import { LessonPage } from "./pages/LessonPage";
 import { ModulePage } from "./pages/ModulePage";
@@ -15,6 +16,7 @@ export function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/m/:moduleId" element={<ModulePage />} />
           <Route path="/m/:moduleId/l/:lessonId" element={<LessonPage />} />
           <Route path="/m/:moduleId/t/:taskId" element={<TaskPage />} />

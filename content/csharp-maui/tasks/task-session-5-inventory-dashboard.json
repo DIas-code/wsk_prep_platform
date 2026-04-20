@@ -5,7 +5,17 @@
   "overview": "Session 5 — desktop-приложение для менеджеров KMG. Два основных экрана:\n\n1. **Inventory Dashboard** — пять панелей аналитики по расходам emergency maintenance (3 таблицы + 2 графика).\n2. **Material-Technical Asset Management** — форма поиска запчастей и их распределения на активные EM-заявки по методу учёта (FIFO/LIFO/Minimum Cost).\n\nПлюс поддержка нескольких языков через XML-файлы в папке `languages/`.",
   "difficulty": "championship",
   "relatedModule": "csharp-maui",
-  "relatedLessons": [],
+  "relatedLessons": [
+    "03-layout-containers",
+    "05-data-binding",
+    "06-mvvm-toolkit",
+    "07-collectionview",
+    "09-sqlserver-ado",
+    "11-styles-themes",
+    "12-ef-core-sqlserver",
+    "13-stored-procedures-reports",
+    "15-platform-specifics"
+  ],
   "timeLimitMinutes": 300,
   "sections": [
     {

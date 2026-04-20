@@ -1,0 +1,57 @@
+{
+  "id": "03-selecting-filtering",
+  "moduleId": "python-data-analysis",
+  "title": "Выборка и фильтрация: loc, iloc, маски, query",
+  "summary": "Выбор столбцов и строк через `[]`, `.loc`, `.iloc`. Булевы маски, комбинированные условия через `&`/`|`/`~`, `isin`, `between`. Метод `.query()` для SQL-подобного синтаксиса. Python 3.13+, pandas последней стабильной версии.",
+  "estimatedMinutes": 35,
+  "theory": {
+    "kind": "inline",
+    "value": "# Выборка и фильтрация\n\nЗагрузили DataFrame — дальше 90 % работы это достать из него нужный кусок. Этот урок про то, **как** это делать без боли: четыре способа (`[]`, `.loc`, `.iloc`, `.query`) и когда какой брать.\n\n## Выбор столбцов\n\nОдин столбец (возвращает `Series`):\n\n```python\nages = partners['age']\n```\n\nНесколько столбцов (возвращает `DataFrame` — обратите внимание на **двойные** скобки, это список):\n\n```python\nsub = partners[['partner_id', 'name', 'age']]\n```\n\n**Частая ошибка:** `partners['partner_id', 'name']` — это кортеж, pandas воспримет как один ключ и бросит `KeyError`. Всегда `[[...]]`.\n\n## Выбор строк по условию (булева маска)\n\nСамый частый паттерн. Условие возвращает `Series` из `True`/`False`, DataFrame его использует как фильтр:\n\n```python\nadults = partners[partners['age'] >= 18]\n```\n\nНесколько условий — **обязательно в скобках**, оператор `&` (и) / `|` (или) / `~` (не). Питоновские `and`/`or` здесь **не работают** — бросят ошибку «truth value of a Series is ambiguous»:\n\n```python\nyoung_active = partners[(partners['age'] < 30) & (partners['is_active'])]\nnon_moscow = partners[~(partners['city'] == 'Москва')]\n```\n\n### Полезные вспомогательные методы\n\n`isin` — проверка «значение из списка»:\n\n```python\nbig4 = transactions[transactions['partner_id'].isin(['P001', 'P042', 'P108', 'P250'])]\n```\n\n`between` — проверка диапазона (включительно с обоих концов):\n\n```python\njan = transactions[transactions['transaction_date'].between('2025-01-01', '2025-01-31')]\n```\n\n`str.contains` / `str.startswith` — по строкам:\n\n```python\nkmg = products[products['name'].str.contains('KMG', case=False, na=False)]\n```\n\n`na=False` обязательно — иначе `NaN` в данных развалит маску.\n\n## `.loc` — выбор по меткам\n\n`.loc[rows, cols]` — по значениям индекса и по именам столбцов. Срезы **включают** правый конец (в отличие от обычного Python).\n\n```python\n# одна строка по индексу\npartners.loc[42]\n\n# несколько строк и подмножество столбцов\npartners.loc[[10, 20, 30], ['name', 'age']]\n\n# срез по индексу и срез по колонкам\npartners.loc[0:5, 'partner_id':'age']\n\n# булева маска + выбор столбцов\npartners.loc[partners['age'] >= 18, ['name', 'email']]\n```\n\nПоследний паттерн — золотой: фильтр + выбор колонок в одной операции, без промежуточных переменных.\n\n### Присваивание через `.loc`\n\nДля обновления значений **всегда используйте `.loc`**, не цепочку `df[mask][col] = ...`:\n\n```python\npartners.loc[partners['age'].isna(), 'age'] = partners['age'].median()\n```\n\nЦепочка `partners[partners['age'].isna()]['age'] = ...` формально сработает, но pandas выдаст `SettingWithCopyWarning` — вы модифицируете копию, а не оригинал, и результат зависит от внутренних деталей.\n\n## `.iloc` — выбор по позициям\n\nТочно так же, но работает **по номеру строки/колонки**, не по метке. Срезы **не включают** правый конец (как в обычном Python).\n\n```python\npartners.iloc[0]          # первая строка\npartners.iloc[-1]         # последняя\npartners.iloc[0:5, 0:3]   # первые 5 строк, первые 3 колонки\n```\n\nПользуйтесь `.iloc`, когда реально нужна позиция (например, последняя строка или случайные индексы из NumPy). Для 99 % задач — `.loc`.\n\n## `.query` — SQL-подобный синтаксис\n\nКогда условий много, `.query` читается сильно лучше:\n\n```python\n# ad-hoc фильтр через маску — выглядит громоздко\ndf[(df['amount'] > 1000) & (df['country'] == 'KZ') & (df['category'].isin(['A', 'B']))]\n\n# через query — короче и ближе к естественному языку\ndf.query(\"amount > 1000 and country == 'KZ' and category in ['A', 'B']\")\n```\n\nПравила `query`:\n\n- Строки — в **одинарных** кавычках (внешняя строка — двойные).\n- Логические операторы — `and`, `or`, `not` (а также `&`, `|`).\n- Ссылка на внешнюю переменную — через `@`:\n\n```python\nthreshold = 5000\nbig = transactions.query('amount > @threshold')\n```\n\nОграничения: `query` не любит колонки с пробелами в имени (используйте обратные апострофы — `` `имя колонки` ``).\n\n## Часто бывает: сброс индекса после фильтрации\n\nПосле фильтра индекс остаётся старый (с пропусками), это иногда мешает:\n\n```python\nfiltered = partners[partners['age'] >= 18].reset_index(drop=True)\n```\n\n`drop=True` выбрасывает старый индекс, а не сохраняет его отдельной колонкой.\n\n## Что запомнить\n\n- Один столбец — `df['col']`, несколько — `df[['a', 'b']]`.\n- Для условий: `&`, `|`, `~` + **скобки**; не `and`/`or`.\n- `isin`, `between`, `str.contains(..., na=False)` — хлеб фильтрации.\n- `.loc[mask, cols]` — лучший паттерн «отфильтровать и выбрать колонки».\n- Для присваивания по маске — только `.loc`, иначе `SettingWithCopyWarning` и непредсказуемый результат.\n- `.iloc` — только когда действительно нужна позиция.\n- `.query` — читабельнее при 3+ условиях; внешние переменные через `@`.\n- `reset_index(drop=True)` после фильтра, если индекс мешает."
+  },
+  "practice": [
+    {
+      "id": "filter-session6",
+      "title": "Фильтры на транзакциях KMG",
+      "goal": "Получить разные срезы данных через маски, `.loc` и `.query` на таблице `transactions`.",
+      "steps": [
+        {
+          "id": "january-transactions",
+          "instruction": "Выберите все транзакции за январь 2025 года и распечатайте их количество.",
+          "code": {
+            "language": "python",
+            "full": "import pandas as pd\n\ntransactions = pd.read_csv('sales_transactions.csv', parse_dates=['transaction_date'])\n\njan = transactions[transactions['transaction_date'].between('2025-01-01', '2025-01-31')]\nprint(f'январских транзакций: {len(jan)}')",
+            "explanation": "`between('2025-01-01', '2025-01-31')` работает благодаря тому, что `transaction_date` имеет тип `datetime64[ns]` — pandas приведёт строковые границы к датам автоматически."
+          },
+          "hints": [
+            "Если `transaction_date` — строка, `between` всё равно отработает, но как лексикографическое сравнение строк, что ненадёжно. Проверьте тип через `.dtype`."
+          ]
+        },
+        {
+          "id": "top-partners-by-amount",
+          "instruction": "Отфильтруйте транзакции с `amount > 10000` и выберите только колонки `partner_id`, `transaction_date`, `amount` одним вызовом `.loc`.",
+          "code": {
+            "language": "python",
+            "full": "big = transactions.loc[\n    transactions['amount'] > 10000,\n    ['partner_id', 'transaction_date', 'amount']\n]\n\nprint(big.head())\nprint(f'крупных транзакций: {len(big)}')",
+            "explanation": "`.loc[mask, cols]` — фильтрация и проекция в одном выражении. Читается сверху вниз, нет промежуточных переменных."
+          },
+          "hints": [
+            "Это канонический паттерн — запомните его. Через `df[mask][['a','b']]` тоже сработает, но даст предупреждение и два сканирования вместо одного."
+          ]
+        },
+        {
+          "id": "query-multi-condition",
+          "instruction": "Используя `.query`, найдите все транзакции партнёров `P001` и `P042` за 2025 год с суммой ≥ порога, заданного переменной `threshold`.",
+          "code": {
+            "language": "python",
+            "full": "threshold = 5000\npartner_ids = ['P001', 'P042']\n\nselected = transactions.query(\n    \"partner_id in @partner_ids \"\n    \"and transaction_date >= '2025-01-01' \"\n    \"and transaction_date < '2026-01-01' \"\n    \"and amount >= @threshold\"\n)\n\nprint(selected[['partner_id', 'transaction_date', 'amount']].head())",
+            "explanation": "`@threshold` / `@partner_ids` — синтаксис ссылки на локальные переменные внутри строки `query`. Сравнение дат со строками работает, потому что pandas парсит их по месту."
+          },
+          "hints": [
+            "Строки, склеенные через конкатенацию (`\"...\" \"...\"`), — обычный питоновский приём, помогает разбить длинный `query` без перевода строк внутри."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": ["task-session-6-data-analysis"]
+}

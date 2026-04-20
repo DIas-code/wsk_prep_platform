@@ -1,0 +1,60 @@
+{
+  "id": "02-loading-data",
+  "moduleId": "python-data-analysis",
+  "title": "Загрузка данных: CSV, Excel, JSON",
+  "summary": "Чтение CSV (`read_csv`), Excel (`read_excel`), JSON (`read_json`). Параметры парсинга: разделитель, кодировка, заголовки, типы, парсинг дат. Python 3.13+, pandas последней стабильной версии, openpyxl для Excel.",
+  "estimatedMinutes": 30,
+  "theory": {
+    "kind": "inline",
+    "value": "# Загрузка данных в pandas\n\nПочти любой анализ начинается с того, что вы читаете файл. pandas умеет десятки форматов; в KMG Session 6 вы встретите три: **CSV**, **Excel**, **JSON**. Задача этого урока — не просто прочитать файл, а прочитать его **правильно**: с нужной кодировкой, разделителем, типами колонок и распарсенными датами. Иначе все последующие шаги (фильтрация, `groupby`, ARIMA) будут работать на мусоре.\n\n## CSV — `pd.read_csv`\n\nСамый частый случай:\n\n```python\nimport pandas as pd\n\ndf = pd.read_csv('sales_transactions.csv')\n```\n\nЭто работает, **если файл идеален**. В жизни идеальных файлов не бывает. Разберём параметры, которые пригодятся почти всегда.\n\n### Разделитель (`sep`) и кодировка (`encoding`)\n\nЕвропейские и русские CSV часто разделены точкой с запятой, не запятой:\n\n```python\ndf = pd.read_csv('sales.csv', sep=';')\n```\n\nКодировки: по умолчанию `utf-8`. Если файл экспортирован из старого Excel под Windows — это почти наверняка `cp1251` (кириллица) или `utf-8-sig` (UTF-8 с BOM):\n\n```python\ndf = pd.read_csv('partners.csv', encoding='utf-8-sig')\n```\n\nЕсли видите в заголовке первого столбца префикс `\\ufeff` — это невидимый BOM, замените `encoding='utf-8'` на `encoding='utf-8-sig'`.\n\n### Заголовки (`header`) и имена колонок (`names`)\n\nЕсли первая строка — заголовки (обычно так): оставьте по умолчанию. Если заголовков нет:\n\n```python\ndf = pd.read_csv('data.csv', header=None, names=['id', 'value', 'date'])\n```\n\nЕсли первые 3 строки — мета-информация (название отчёта, дата выгрузки), а шапка на 4-й:\n\n```python\ndf = pd.read_csv('report.csv', skiprows=3)\n```\n\n### Типы колонок (`dtype`)\n\npandas сам угадывает типы, но иногда ошибается. Классическая проблема: колонка `partner_id` выглядит как число, но содержит ведущие нули (`'007'`). pandas превратит её в `int`, нули потеряются. Исправление:\n\n```python\ndf = pd.read_csv('partners.csv', dtype={'partner_id': str})\n```\n\n`dtype` — словарь `{колонка: тип}`. Типы: `str`, `int`, `float`, `'category'` и т. п.\n\n### Даты (`parse_dates`)\n\nПо умолчанию pandas читает даты как строки. Заставить его распарсить — через `parse_dates`:\n\n```python\ndf = pd.read_csv(\n    'sales_transactions.csv',\n    parse_dates=['transaction_date']\n)\nprint(df['transaction_date'].dtype)  # datetime64[ns]\n```\n\nЕсли формат нестандартный (например, `31/12/2025`), распарсить вручную удобнее **после** чтения:\n\n```python\ndf['transaction_date'] = pd.to_datetime(df['transaction_date'], format='%d/%m/%Y')\n```\n\n### Пропуски (`na_values`)\n\npandas из коробки считает пропусками `''`, `NA`, `NaN`. Если в ваших данных «пусто» обозначается как `'-'` или `'N/A'`:\n\n```python\ndf = pd.read_csv('data.csv', na_values=['-', 'N/A', 'не указано'])\n```\n\n### Большие файлы (`usecols`, `nrows`, `chunksize`)\n\nЕсли файл на 500 МБ, а вам нужны 3 колонки:\n\n```python\ndf = pd.read_csv('big.csv', usecols=['id', 'date', 'amount'])\n```\n\nЕсли нужно просто быстро посмотреть первые 1000 строк:\n\n```python\ndf = pd.read_csv('big.csv', nrows=1000)\n```\n\nДля потоковой обработки — `chunksize` (возвращает итератор), но в Session 6 размеры файлов небольшие, так что не понадобится.\n\n## Excel — `pd.read_excel`\n\nТребует дополнительную библиотеку-движок: для `.xlsx` — `openpyxl`, для старых `.xls` — `xlrd`. Установка: `pip install openpyxl`.\n\n```python\ndf = pd.read_excel('report.xlsx', sheet_name='Данные')\n```\n\n`sheet_name` принимает имя, индекс или `None` (вернёт словарь `{имя: DataFrame}` со всеми листами). Если `None`:\n\n```python\nsheets = pd.read_excel('report.xlsx', sheet_name=None)\nprint(sheets.keys())  # dict_keys(['Данные', 'Сводка'])\ndf_main = sheets['Данные']\n```\n\nExcel хранит даты нативно — `parse_dates` обычно не нужен, pandas сам определит `datetime`. Но если даты сохранены как текст — снова `pd.to_datetime`.\n\n## JSON — `pd.read_json`\n\nДля плоских JSON-массивов (`[{...}, {...}, ...]`):\n\n```python\ndf = pd.read_json('products.json')\n```\n\nДля вложенных структур `read_json` сохранит вложенность в ячейках (будут словари внутри столбцов). Это обычно неудобно — используйте `pd.json_normalize`:\n\n```python\nimport json\n\nwith open('products.json', encoding='utf-8') as f:\n    raw = json.load(f)\n\ndf = pd.json_normalize(raw, sep='_')\n# вложенные ключи превращаются в plain-колонки через '_'\n```\n\n## Проверка после загрузки\n\nВсегда делайте три вещи сразу после чтения:\n\n```python\nprint(df.shape)      # размер\nprint(df.dtypes)     # типы колонок\nprint(df.head(3))    # первые строки\nprint(df.isna().sum())  # количество пропусков в каждой колонке\n```\n\nЕсли `dtype` у даты — `object` (не `datetime64`), значит дата не распарсилась. Если `int` у `price` — потенциально потеряны копейки (должно быть `float`). Если в `isna` внезапно большое число — скорее всего `na_values` нужно расширить.\n\n## Что запомнить\n\n- `read_csv` — 80 % случаев. Основные параметры: `sep`, `encoding`, `dtype`, `parse_dates`, `na_values`.\n- Кириллица из Excel часто приходит в `utf-8-sig` или `cp1251`.\n- ID с ведущими нулями читайте как `str` через `dtype`.\n- Excel требует `openpyxl`; `sheet_name=None` читает все листы.\n- Вложенный JSON разворачивайте `pd.json_normalize`, не `read_json`.\n- После чтения всегда смотрите `shape`, `dtypes`, `head()`, `isna().sum()`."
+  },
+  "practice": [
+    {
+      "id": "load-kmg-files",
+      "title": "Загрузка трёх файлов Session 6",
+      "goal": "Прочитать три исходных файла KMG с корректными типами и распарсенными датами, убедиться, что типы соответствуют ожиданиям.",
+      "steps": [
+        {
+          "id": "load-transactions",
+          "instruction": "Загрузите `sales_transactions.csv` с парсингом даты транзакции и проверьте, что `transaction_date` имеет тип `datetime64[ns]`.",
+          "code": {
+            "language": "python",
+            "full": "import pandas as pd\n\ntransactions = pd.read_csv(\n    'sales_transactions.csv',\n    parse_dates=['transaction_date'],\n    dtype={'partner_id': str, 'product_id': str, 'promotion_id': str}\n)\n\nprint(transactions.shape)\nprint(transactions.dtypes)\nprint(transactions.head(3))",
+            "simplified": "transactions = pd.read_csv('sales_transactions.csv', parse_dates=['transaction_date'])\nprint(transactions.dtypes)",
+            "explanation": "ID читаем как `str`, чтобы не потерять ведущие нули и не смешать их с числами в `groupby`. `parse_dates` сразу даёт `datetime`, без отдельного `pd.to_datetime`."
+          },
+          "hints": [
+            "Если `transaction_date` всё равно `object` — проверьте формат дат в файле и используйте `pd.to_datetime(..., format=...)` после чтения.",
+            "Если появилась ошибка кодировки — попробуйте `encoding='utf-8-sig'`."
+          ]
+        },
+        {
+          "id": "load-partners-with-na",
+          "instruction": "Загрузите `partners_KMG.csv`, считая строки `'-'` и `'N/A'` пропусками, и выведите количество пропусков по каждой колонке.",
+          "code": {
+            "language": "python",
+            "full": "partners = pd.read_csv(\n    'partners_KMG.csv',\n    dtype={'partner_id': str, 'phone_number': str},\n    na_values=['-', 'N/A', '']\n)\n\nprint(partners.isna().sum())",
+            "explanation": "`phone_number` как строка обязательно — в Session 6 его нужно стандартизировать (убрать лишние символы), а как число он превратится в мусор. `na_values` дополняет умолчания, не заменяет."
+          },
+          "hints": [
+            "Если кириллица в колонках ломается — `encoding='utf-8-sig'`.",
+            "`isna().sum()` суммирует `True` как 1 — получаете количество пропусков по колонке."
+          ]
+        },
+        {
+          "id": "load-products",
+          "instruction": "Загрузите `products_KMG.csv`, убедитесь, что колонка цены имеет тип `float64`, и распечатайте топ-5 самых дорогих продуктов.",
+          "code": {
+            "language": "python",
+            "full": "products = pd.read_csv('products_KMG.csv', dtype={'product_id': str})\n\nassert products['price'].dtype.kind == 'f', 'price must be float'\n\ntop5 = products.sort_values('price', ascending=False).head(5)\nprint(top5[['product_id', 'name', 'price']])",
+            "explanation": "`.dtype.kind == 'f'` — универсальная проверка «это число с плавающей точкой» (охватывает `float32`/`float64`). `sort_values(..., ascending=False)` + `head(5)` — стандартный паттерн «топ N»."
+          },
+          "hints": [
+            "Если `price` читается как `object` — в файле могут быть запятые вместо точек. Пропишите `decimal=','` в `read_csv` или используйте `df['price'].str.replace(',', '.').astype(float)`."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": ["task-session-6-data-analysis"]
+}

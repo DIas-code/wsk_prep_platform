@@ -1,5 +1,9 @@
 # Development Roadmap
 
+> **Current phase:** all code phases complete — last updated 2026-04-20.
+> Done: Phases 0–7 + 8.1 CI + 8.3 Playwright smoke. 6.4.1 `csharp-maui` 16/16 lessons (added `16-packaging-publishing` MSIX+APK). 6.4.2 `sql-databases` 5/5. 6.4.3 `python-data-analysis` 12/12. All 6 session tasks have `relatedLessons`. **7.1 progress backup:** `exportProgressJson`/`importProgressJson` + `ProgressBackup` buttons on HomePage. **7.2 `/dashboard`:** `DashboardPage` at `/dashboard` with per-module lessons-done / tasks-attempted / avg self-score. **7.3 task timer:** `useCountdown` + `TaskTimer` panel with `startedAt` persisted. **Markdown renderer fixed** (`src/ui/Markdown.tsx`) — `inline` detection that works on react-markdown v9. **Content graph integration test** (`content.integration.test.ts`) walks disk content via `import.meta.glob`, runs schemas + `validateContentGraph`. CI workflow at `.github/workflows/ci.yml`. Playwright smoke at `e2e/smoke.spec.ts`. Test suite: 75 passing across 8 files; `npm run typecheck` and `npm run build` clean.
+> Manual steps left for user: run `npm install` (adds `@playwright/test`), then once `npx playwright install chromium` before `npm run build && npm run test:e2e`. Phase 8.2 hosting — connect repo to Vercel/Cloudflare Pages (build `npm run build`, output `dist/`).
+
 End-to-end plan from current scaffold to a deployed site that trains students on the six KazMunayGas WorldSkills sessions.
 
 Each step = **what to do** + **how to verify**. Tests are written only where they pay off — see the policy below. UI is verified by eye in the dev server.

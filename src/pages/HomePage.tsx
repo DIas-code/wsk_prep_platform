@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 
 import { useContent } from "../ui/ContentContext";
+import { ProgressBackup } from "../ui/ProgressBackup";
 import { useAsync } from "../ui/useAsync";
 import { pluralize } from "../ui/ru";
 
@@ -18,7 +19,15 @@ export function HomePage() {
 
   return (
     <div className="max-w-5xl mx-auto p-8">
-      <h1 className="text-3xl font-semibold mb-2">WorldSkills: IT Software Solutions</h1>
+      <div className="flex items-start justify-between gap-4 mb-2">
+        <h1 className="text-3xl font-semibold">WorldSkills: IT Software Solutions</h1>
+        <div className="flex items-center gap-3">
+          <Link to="/dashboard" className="text-sm text-blue-600 hover:underline">
+            Прогресс →
+          </Link>
+          <ProgressBackup />
+        </div>
+      </div>
       <p className="text-slate-600 mb-8">Выберите модуль, чтобы начать.</p>
       <div className="grid gap-4 md:grid-cols-2">
         {state.data.map((mod) => {

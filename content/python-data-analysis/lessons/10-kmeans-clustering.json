@@ -1,0 +1,60 @@
+{
+  "id": "10-kmeans-clustering",
+  "moduleId": "python-data-analysis",
+  "title": "K-means кластеризация в scikit-learn",
+  "summary": "K-means: подготовка признаков (масштабирование через `StandardScaler`), подбор `k` методом локтя (inertia), обучение `KMeans`, интерпретация кластеров. Проблема разных масштабов. Python 3.13+, pandas и scikit-learn последних стабильных версий.",
+  "estimatedMinutes": 45,
+  "theory": {
+    "kind": "inline",
+    "value": "# K-means кластеризация\n\nK-means — самый простой и самый популярный метод кластеризации. Идея: вы задаёте число кластеров `k`, алгоритм находит `k` центров так, чтобы сумма квадратов расстояний от точек до их центров (inertia) была минимальной.\n\nВ Session 6 кластеризация применяется к **партнёрам**: сегментировать их по поведению (частота, средний чек, последняя покупка) и действовать с сегментами по-разному.\n\n## Подготовка признаков\n\nK-means работает на числовых колонках и чувствителен к **масштабу**. Если одна колонка — возраст (до 100), а другая — сумма покупок (до 10 000 000), алгоритм будет считать в основном по сумме, возраст не будет влиять вообще. Лечение — **масштабирование**.\n\n### Стандартизация (`StandardScaler`)\n\n`StandardScaler` преобразует каждую колонку так, чтобы среднее стало 0, а стандартное отклонение — 1.\n\n```python\nfrom sklearn.preprocessing import StandardScaler\n\nfeatures = partner_summary[['n_transactions', 'total_amount', 'avg_amount']]\nscaler = StandardScaler()\nX = scaler.fit_transform(features)\n```\n\n`fit_transform` = «посчитай mean/std и применяй». `X` — массив NumPy, готовый к передаче в K-means.\n\nАльтернатива — `MinMaxScaler` (приводит к диапазону `[0, 1]`). Для K-means чаще используют `StandardScaler`.\n\n## Обучение модели\n\n```python\nfrom sklearn.cluster import KMeans\n\nmodel = KMeans(n_clusters=4, n_init=10, random_state=42)\nlabels = model.fit_predict(X)\npartner_summary['cluster'] = labels\n```\n\nПараметры:\n\n- `n_clusters` — желаемое `k`.\n- `n_init=10` — сколько раз запустить с разной случайной инициализацией (берётся лучший результат). В новых scikit-learn `'auto'` по умолчанию.\n- `random_state=42` — воспроизводимость.\n\n## Сколько кластеров? Метод локтя\n\nKMeans **не умеет** сам выбрать `k`. Обычный приём — посмотреть, как `inertia_` (сумма квадратов расстояний внутри кластеров) уменьшается с ростом `k`, и найти «локоть» — точку, после которой улучшение становится слабым.\n\n```python\nimport matplotlib.pyplot as plt\n\ninertias = []\nk_range = range(1, 11)\nfor k in k_range:\n    m = KMeans(n_clusters=k, n_init=10, random_state=42)\n    m.fit(X)\n    inertias.append(m.inertia_)\n\nfig, ax = plt.subplots(figsize=(6, 4))\nax.plot(list(k_range), inertias, marker='o')\nax.set_xlabel('k')\nax.set_ylabel('Inertia')\nax.set_title('Elbow method')\nax.grid(True, alpha=0.3)\nfig.tight_layout()\nfig.savefig('elbow.png', dpi=150)\n```\n\nСмотрите на график: если после `k=4` кривая выравнивается, берите 4. Это **глазной** метод, автоматика тут работает плохо.\n\n### Silhouette score (альтернатива)\n\nБолее формальная метрика — силуэтный коэффициент. Чем выше (ближе к 1), тем «чище» кластеры:\n\n```python\nfrom sklearn.metrics import silhouette_score\n\nfor k in range(2, 7):\n    m = KMeans(n_clusters=k, n_init=10, random_state=42).fit(X)\n    score = silhouette_score(X, m.labels_)\n    print(f'k={k}: silhouette={score:.3f}')\n```\n\n## Интерпретация кластеров\n\nСам по себе номер кластера (0, 1, 2, 3) ничего не значит. Надо посмотреть **средние значения признаков** по каждому кластеру:\n\n```python\nprofile = partner_summary.groupby('cluster').agg(\n    n_partners=('partner_id', 'count'),\n    avg_n_transactions=('n_transactions', 'mean'),\n    avg_total=('total_amount', 'mean'),\n    avg_check=('avg_amount', 'mean'),\n)\nprint(profile)\n```\n\nТогда вы увидите:\n\n- «Кластер 0 — частые малые покупатели» (много транзакций, маленький средний чек).\n- «Кластер 1 — VIP» (мало, но крупно).\n- И так далее.\n\nНазвания дают уже бизнес-аналитики (вы), не алгоритм.\n\n## Частые подвохи\n\n1. **Забыли масштабирование.** Кластеры определятся только по колонке с самым большим диапазоном.\n2. **Категориальные признаки в KMeans.** KMeans работает на числах. One-hot превращает категорию в много колонок, но если их больше, чем числовых, алгоритм «уплывает» в категориальное пространство. Для смеси числовых и категориальных — k-prototypes или отдельные подходы.\n3. **`random_state` не задан.** Результат будет разный между запусками; неприятно для автопроверки и отчётов.\n4. **Кластеры «один против всех».** Часто `k=2` даёт «все нормальные vs выбросы». Если такое наблюдаете — сначала удалите/обработайте выбросы, потом кластеризуйте.\n\n## Экспорт результата\n\nДля отчёта Session 6 обычно нужно сохранить:\n\n1. CSV с `partner_id` и `cluster` (присваиваем сегмент каждому партнёру).\n2. PNG с elbow-графиком (объяснение, почему выбрали `k`).\n3. CSV с «профилем» кластеров (средние значения признаков).\n\n```python\npartner_summary[['partner_id', 'cluster']].to_csv(\n    'partners_clusters.csv', index=False, encoding='utf-8-sig'\n)\nprofile.to_csv('cluster_profile.csv', encoding='utf-8-sig')\n```\n\n## Что запомнить\n\n- Всегда масштабируйте признаки перед K-means (`StandardScaler`).\n- `k` подбирайте методом локтя (или silhouette) — автоматом алгоритм не решит.\n- `random_state` — фиксируйте для воспроизводимости.\n- Интерпретируйте кластеры через средние признаков, не по номерам.\n- Экспортируйте и лейблы (`partner_id → cluster`), и профиль."
+  },
+  "practice": [
+    {
+      "id": "segment-partners",
+      "title": "Сегментация партнёров",
+      "goal": "Разделить партнёров на 3–5 кластеров по поведению и интерпретировать результат.",
+      "steps": [
+        {
+          "id": "prepare-features",
+          "instruction": "Возьмите `partner_summary` (из урока 05), оставьте числовые признаки и масштабируйте через `StandardScaler`.",
+          "code": {
+            "language": "python",
+            "full": "import pandas as pd\nfrom sklearn.preprocessing import StandardScaler\n\n# partner_summary готов из урока 05\nfeatures = partner_summary[['n_transactions', 'total_amount', 'avg_amount', 'n_unique_products']]\n\nscaler = StandardScaler()\nX = scaler.fit_transform(features)\n\nprint('shape:', X.shape)\nprint('mean по колонкам ≈ 0:', X.mean(axis=0).round(3))\nprint('std по колонкам ≈ 1:', X.std(axis=0).round(3))",
+            "explanation": "Проверка `mean ≈ 0` и `std ≈ 1` подтверждает, что масштабирование отработало. В следующих шагах используем именно `X`, не исходные `features`."
+          },
+          "hints": [
+            "Если какой-то признак константа — его std = 0, `StandardScaler` выдаст NaN. Удалите такую колонку.",
+            "Оригинальные значения нужны для интерпретации — не перезаписывайте их."
+          ]
+        },
+        {
+          "id": "elbow-plot",
+          "instruction": "Постройте elbow-график для `k` от 1 до 10 и сохраните как `elbow.png`.",
+          "code": {
+            "language": "python",
+            "full": "from sklearn.cluster import KMeans\nimport matplotlib.pyplot as plt\n\nk_range = range(1, 11)\ninertias = []\nfor k in k_range:\n    m = KMeans(n_clusters=k, n_init=10, random_state=42).fit(X)\n    inertias.append(m.inertia_)\n\nfig, ax = plt.subplots(figsize=(6, 4))\nax.plot(list(k_range), inertias, marker='o', color='#003f7f')\nax.set_xlabel('k')\nax.set_ylabel('Inertia')\nax.set_title('Elbow method — выбор числа кластеров')\nax.grid(True, alpha=0.3)\nfig.tight_layout()\nfig.savefig('elbow.png', dpi=150, bbox_inches='tight')\nplt.close(fig)",
+            "explanation": "`n_init=10` и `random_state=42` стандартны. При малых данных (десятки партнёров) inertia может прыгать при каждом запуске без `random_state`."
+          },
+          "hints": [
+            "Смотрите на график, где кривая перестаёт резко падать — там и локоть.",
+            "Если локтя нет, возможно, данные плохо кластеризуются — K-means не всегда применим."
+          ]
+        },
+        {
+          "id": "fit-and-profile",
+          "instruction": "Обучите KMeans на выбранном `k` (например, 4), присвойте метки и посчитайте профиль кластеров.",
+          "code": {
+            "language": "python",
+            "full": "k = 4  # по результату elbow\n\nmodel = KMeans(n_clusters=k, n_init=10, random_state=42)\npartner_summary['cluster'] = model.fit_predict(X)\n\nprofile = partner_summary.groupby('cluster').agg(\n    n_partners=('partner_id', 'count'),\n    avg_n_tx=('n_transactions', 'mean'),\n    avg_total=('total_amount', 'mean'),\n    avg_check=('avg_amount', 'mean'),\n    avg_unique_products=('n_unique_products', 'mean'),\n).round(2)\n\nprint(profile)\n\npartner_summary[['partner_id', 'cluster']].to_csv(\n    'partners_clusters.csv', index=False, encoding='utf-8-sig'\n)\nprofile.to_csv('cluster_profile.csv', encoding='utf-8-sig')",
+            "explanation": "Профиль покажет, какие кластеры получились «по смыслу». Высокий `avg_total` + низкий `n_partners` — VIP-сегмент; высокий `avg_n_tx` + низкий `avg_check` — частые малые."
+          },
+          "hints": [
+            "Названия кластеров («VIP», «частые малые»…) добавляйте вручную в отдельную колонку — это бизнес-интерпретация.",
+            "Если один кластер содержит 80 % партнёров — возможно, `k` слишком мал или данные однородные."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": ["task-session-6-data-analysis"]
+}

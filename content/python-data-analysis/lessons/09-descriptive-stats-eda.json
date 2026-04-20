@@ -1,0 +1,59 @@
+{
+  "id": "09-descriptive-stats-eda",
+  "moduleId": "python-data-analysis",
+  "title": "Описательная статистика и EDA",
+  "summary": "Быстрый разведочный анализ: `describe`, `value_counts`, `corr`, распределения, выбросы (IQR), корреляционная матрица. Структурированный EDA-чеклист. Python 3.13+, pandas последней стабильной версии.",
+  "estimatedMinutes": 35,
+  "theory": {
+    "kind": "inline",
+    "value": "# Описательная статистика и разведочный анализ\n\nПеред тем как строить прогноз или кластеризацию, надо **понять** данные. Это называется EDA — **exploratory data analysis**. Цель — за 15–30 минут нарисовать у себя в голове картину: что есть, в каких диапазонах, с какими распределениями, где аномалии, между какими переменными есть связь. Если этого шага нет, дальше вы будете гадать, почему модель работает плохо.\n\n## Стандартный чеклист EDA\n\n1. Размер (`shape`) и типы (`dtypes`).\n2. Пропуски (`isna().sum()`).\n3. Числовые статистики (`describe()`).\n4. Категории (`value_counts()` по категориальным колонкам).\n5. Распределения (гистограмма на каждую числовую колонку).\n6. Выбросы (boxplot или правило IQR).\n7. Корреляции между числовыми колонками.\n8. Повторяемость ключа (дубликаты).\n\nНе надо писать отдельный скрипт — это 5–10 строк, которые прогоняются сразу после чистки.\n\n## `describe()`\n\n```python\nprint(tx['amount'].describe())\n```\n\nДля числовой колонки вернёт: `count`, `mean`, `std`, `min`, `25%`, `50%` (медиана), `75%`, `max`. Для `DataFrame` — то же по всем числовым колонкам:\n\n```python\ntx.describe()\ntx.describe(include='all')  # включая категориальные (unique, top, freq)\n```\n\n## `value_counts()`\n\nРаспределение категориальной колонки:\n\n```python\npartners['city'].value_counts()\npartners['city'].value_counts(normalize=True)  # в долях\npartners['city'].value_counts(dropna=False)    # включая NaN\n```\n\nПолезно для:\n\n- проверки «сколько уникальных значений» (`nunique()`),\n- поиска опечаток (`'Алматы '` с пробелом будет отдельной категорией, сразу видно),\n- понимания дисбаланса классов (если нужно классифицировать).\n\n## Квантили и выбросы: правило IQR\n\nКлассическое правило Тьюки: «выброс = значение за границами `[Q1 − 1.5·IQR, Q3 + 1.5·IQR]`», где `IQR = Q3 − Q1`.\n\n```python\nq1 = tx['amount'].quantile(0.25)\nq3 = tx['amount'].quantile(0.75)\niqr = q3 - q1\nlow = q1 - 1.5 * iqr\nhigh = q3 + 1.5 * iqr\n\noutliers = tx[(tx['amount'] < low) | (tx['amount'] > high)]\nprint(f'выбросов: {len(outliers)} ({len(outliers) / len(tx):.1%})')\n```\n\nЭто не истина в последней инстанции — выбросы бывают полезные (реальные крупные сделки). Просто сигнал «сюда посмотри внимательно».\n\n## Корреляция\n\nМатрица парных корреляций (Пирсон по умолчанию):\n\n```python\ncorr = full[['amount', 'quantity', 'price', 'age']].corr()\nprint(corr)\n```\n\nПометка:\n\n- Коэффициент близок к 1 → сильная прямая связь.\n- Близок к -1 → сильная обратная.\n- Близок к 0 → линейной связи нет (но нелинейная — может быть).\n\nКорреляции считаются только по числовым колонкам — нечисловые молча игнорируются. Не пугайтесь, если в матрице меньше колонок, чем ожидали.\n\n### Визуализация корреляций\n\n```python\nimport matplotlib.pyplot as plt\n\nfig, ax = plt.subplots(figsize=(6, 5))\nim = ax.imshow(corr, vmin=-1, vmax=1, cmap='RdBu_r')\nax.set_xticks(range(len(corr.columns)))\nax.set_yticks(range(len(corr.columns)))\nax.set_xticklabels(corr.columns, rotation=45, ha='right')\nax.set_yticklabels(corr.columns)\nfig.colorbar(im, ax=ax)\nfig.tight_layout()\n```\n\nДля красивого «тепловое поле с числами» сверху проще взять `seaborn.heatmap(corr, annot=True)`, но базовый matplotlib без сторонних зависимостей тоже справляется.\n\n## Разведка временного ряда\n\nДля дневной выручки:\n\n- Распределение: гистограмма `daily.plot(kind='hist', bins=30)`.\n- Тренд: `daily.rolling(30).mean().plot()`.\n- Сезонность: `daily.groupby(daily.index.dayofweek).mean()` — среднее по дню недели; если разница большая — есть недельная сезонность, нужно учитывать в ARIMA.\n\n```python\nby_dow = daily.groupby(daily.index.dayofweek).mean()\nby_dow.index = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']\nby_dow.plot(kind='bar', title='Средняя выручка по дню недели')\n```\n\n## Быстрый отчёт (`pandas.DataFrame.info()` + `describe()`)\n\n```python\ntx.info()\ntx.describe()\n```\n\n`info()` в одном выводе показывает количество строк, типы, пропуски, использование памяти. Это обычно первая и последняя команда, которая нужна для ответа на «что тут вообще за данные».\n\n## Что запомнить\n\n- EDA — это дисциплина, не набор «крутых графиков». Пробегайте чеклист на каждом новом датасете.\n- `describe()`, `value_counts()`, `corr()` — три главных инструмента.\n- `value_counts(dropna=False)` спасает от пропусков, которые иначе не видно.\n- Выбросы по IQR — грубый, но быстрый ориентир; не удаляйте их автоматически.\n- Для временных рядов обязательный пункт: проверка сезонности по дню недели/месяцу."
+  },
+  "practice": [
+    {
+      "id": "eda-session6",
+      "title": "EDA-чеклист на Session 6",
+      "goal": "Пройти стандартный чеклист на `transactions` + `partners`, зафиксировать наблюдения.",
+      "steps": [
+        {
+          "id": "describe-and-info",
+          "instruction": "Выведите `info()` и `describe()` по транзакциям; отметьте колонки с пропусками и подозрительными диапазонами.",
+          "code": {
+            "language": "python",
+            "full": "import pandas as pd\n\ntx = pd.read_csv('sales_transactions_cleaned.csv', parse_dates=['transaction_date'])\n\ntx.info()\nprint('\\n--- describe ---')\nprint(tx.describe(datetime_is_numeric=True))",
+            "explanation": "`datetime_is_numeric=True` заставляет `describe` выдать min/max/mean и для дат — полезно, чтобы увидеть границы периода."
+          },
+          "hints": [
+            "Если `datetime_is_numeric` даёт предупреждение — параметр стал default в новых pandas, его можно опустить.",
+            "Обратите внимание на `std` у `amount` — если сильно больше `mean`, распределение скошено."
+          ]
+        },
+        {
+          "id": "categoricals",
+          "instruction": "Посчитайте распределение `city` у партнёров и найдите топ-5 городов.",
+          "code": {
+            "language": "python",
+            "full": "partners = pd.read_csv('partners_KMG.csv')\n\ntop5_cities = partners['city'].value_counts(dropna=False).head(5)\nprint(top5_cities)\nprint(f'\\nуникальных городов: {partners[\"city\"].nunique()}')",
+            "explanation": "`dropna=False` покажет, есть ли партнёры без заполненного города — это сразу превращается в потенциальный deliverable Session 6 (invalid values)."
+          },
+          "hints": [
+            "Если видите почти одинаковые названия (`'Алматы'` и `'Алматы '`) — это опечатки, стандартизуйте через `.str.strip()`."
+          ]
+        },
+        {
+          "id": "outliers-iqr",
+          "instruction": "Найдите транзакции-выбросы по правилу IQR и распечатайте их количество и долю.",
+          "code": {
+            "language": "python",
+            "full": "q1 = tx['amount'].quantile(0.25)\nq3 = tx['amount'].quantile(0.75)\niqr = q3 - q1\nlow, high = q1 - 1.5 * iqr, q3 + 1.5 * iqr\n\noutliers = tx[(tx['amount'] < low) | (tx['amount'] > high)]\nprint(f'границы IQR: {low:.2f} .. {high:.2f}')\nprint(f'выбросов: {len(outliers)} ({len(outliers) / len(tx):.1%})')",
+            "explanation": "Само по себе значение «1.5» не сакральное — это традиция. Для очень скошенных распределений (а сумма покупок часто такая) часто разумнее смотреть на верхние перцентили (`quantile(0.99)`)."
+          },
+          "hints": [
+            "Не удаляйте выбросы автоматически — сначала глазами посмотрите: это ошибки ввода или действительно крупные сделки.",
+            "Для асимметричных распределений попробуйте `tx['amount'].plot(kind='hist', bins=50, log_y=True)` — видны «хвосты»."
+          ]
+        }
+      ]
+    }
+  ],
+  "relatedTaskIds": ["task-session-6-data-analysis"]
+}

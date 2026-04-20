@@ -5,7 +5,17 @@
   "overview": "**KazMunayGas (KMG)** расширяется и требует централизованную систему инвентаризации активов. Задача — построить **Android-приложение**, которое связывается с удалённой БД через **Web API** и позволяет менеджерам: каталогизировать активы, регистрировать новые, переносить их между департаментами/локациями и смотреть историю переносов. Весь UI строго по **KMG Style Guide**.\n\n**Ключевые ограничения**\n\n- Приложение не подключается к БД напрямую — только через Web API.\n- Имя БД — `Session1`; схему БД менять нельзя (ни таблиц, ни колонок).\n- Дата везде в формате ISO `YYYY-MM-DD`.\n- Кнопки `Delete` и `Cancel` — красные.\n- Модальное поведение: пока открыта форма/диалог, остальные формы заблокированы.",
   "difficulty": "championship",
   "relatedModule": "csharp-maui",
-  "relatedLessons": [],
+  "relatedLessons": [
+    "01-intro-to-maui",
+    "02-xaml-fundamentals",
+    "03-layout-containers",
+    "04-controls-catalog",
+    "05-data-binding",
+    "06-mvvm-toolkit",
+    "07-collectionview",
+    "09-sqlserver-ado",
+    "12-ef-core-sqlserver"
+  ],
   "timeLimitMinutes": 300,
   "sections": [
     {
