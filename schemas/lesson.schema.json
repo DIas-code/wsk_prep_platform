@@ -45,7 +45,7 @@
       "type": "object",
       "required": ["language", "full", "explanation"],
       "properties": {
-        "language": { "enum": ["csharp", "xaml", "sql", "python", "json", "bash", "powershell"] },
+        "language": { "enum": ["csharp", "xaml", "sql", "python", "json", "bash", "powershell", "markdown"] },
         "full": { "type": "string" },
         "simplified": { "type": "string" },
         "explanation": { "type": "string" }
