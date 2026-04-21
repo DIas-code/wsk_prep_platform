@@ -2,7 +2,7 @@
   "id": "task-session-2-emergency-maintenance",
   "title": "Session 2 — Emergency Maintenance (Desktop)",
   "summary": "Desktop-приложение на .NET 10 для управления заявками на аварийное обслуживание активов KMG. Две роли (Accountable Party / Maintenance Manager), авторизация, учёт запчастей, бизнес-правила по жизненному циклу заявки.",
-  "overview": "**KMG** требует внутреннюю систему управления обслуживанием активов. В этой сессии — **desktop-приложение** для **неплановых (emergency) заявок**. Две роли с разными экранами и правами:\n\n- **Accountable Party** (обычный сотрудник) — видит свои активы, создаёт новые EM-заявки.\n- **Maintenance Manager** (admin) — видит все открытые заявки, обрабатывает их, фиксирует запчасти.\n\nПлатформа desktop — на усмотрение разработчика (рекомендуется MAUI Windows или WPF). БД — `Session2`, MS SQL Server.",
+  "overview": "**KMG** требует внутреннюю систему управления обслуживанием активов. В этой сессии — **desktop-приложение** для **неплановых (emergency) заявок**. Две роли с разными экранами и правами:\n\n- **Accountable Party** (обычный сотрудник) — видит свои активы, создаёт новые EM-заявки.\n- **Maintenance Manager** (admin) — видит все открытые заявки, обрабатывает их, фиксирует запчасти.\n\nПлатформа desktop — **MAUI** с Windows-таргетом (именно это мы изучаем в модуле). БД — `Session2`, MS SQL Server.",
   "difficulty": "championship",
   "relatedModule": "csharp-maui",
   "relatedLessons": [
