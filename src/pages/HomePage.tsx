@@ -22,6 +22,9 @@ export function HomePage() {
       <div className="flex items-start justify-between gap-4 mb-2">
         <h1 className="text-3xl font-semibold">WorldSkills: IT Software Solutions</h1>
         <div className="flex items-center gap-3">
+          <Link to="/cheatsheet" className="text-sm text-blue-600 hover:underline">
+            Cheat Sheet
+          </Link>
           <Link to="/dashboard" className="text-sm text-blue-600 hover:underline">
             Прогресс →
           </Link>

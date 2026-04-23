@@ -13,22 +13,36 @@ export function LessonPage() {
   const { moduleId = "", lessonId = "" } = useParams();
   const { loader } = useContent();
 
-  const state = useAsync(() => loader.loadLesson(moduleId, lessonId), [moduleId, lessonId]);
+  const state = useAsync(async () => {
+    const [lesson, mod] = await Promise.all([
+      loader.loadLesson(moduleId, lessonId),
+      loader.loadModule(moduleId),
+    ]);
+    return { lesson, mod };
+  }, [moduleId, lessonId]);
 
   if (state.status === "loading") return <div className="p-8">Загрузка…</div>;
   if (state.status === "error") {
     return <div className="p-8 text-red-700">Ошибка: {state.error.message}</div>;
   }
 
-  const lesson = state.data;
+  const { lesson, mod } = state.data;
   const theory = lesson.theory.kind === "inline" ? lesson.theory.value : null;
+
+  const lessonIndex = mod.lessonOrder.indexOf(lessonId);
+  const lessonNumber = lessonIndex + 1;
+  const prevLessonId = lessonIndex > 0 ? mod.lessonOrder[lessonIndex - 1] : null;
+  const nextLessonId = lessonIndex < mod.lessonOrder.length - 1 ? mod.lessonOrder[lessonIndex + 1] : null;
 
   return (
     <div className="max-w-3xl mx-auto p-8">
       <Link to={`/m/${moduleId}`} className="text-sm text-slate-500 hover:underline">
-        ← {moduleId}
+        ← {mod.title}
       </Link>
-      <h1 className="text-3xl font-semibold mt-2">{lesson.title}</h1>
+      <div className="text-sm text-slate-400 mt-2">
+        Урок {lessonNumber} из {mod.lessonOrder.length}
+      </div>
+      <h1 className="text-3xl font-semibold mt-1">{lesson.title}</h1>
       <p className="text-slate-600 mt-1">{lesson.summary}</p>
 
       <section className="mt-8">
@@ -56,6 +70,29 @@ export function LessonPage() {
           </div>
         </section>
       )}
+
+      <div className="mt-10 flex justify-between border-t border-slate-200 pt-6">
+        {prevLessonId !== null ? (
+          <Link
+            to={`/m/${moduleId}/l/${prevLessonId}`}
+            className="text-sm text-blue-600 hover:underline"
+          >
+            ← Предыдущий урок
+          </Link>
+        ) : (
+          <span />
+        )}
+        {nextLessonId !== null ? (
+          <Link
+            to={`/m/${moduleId}/l/${nextLessonId}`}
+            className="text-sm text-blue-600 hover:underline"
+          >
+            Следующий урок →
+          </Link>
+        ) : (
+          <span />
+        )}
+      </div>
     </div>
   );
 }

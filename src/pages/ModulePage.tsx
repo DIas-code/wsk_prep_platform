@@ -32,15 +32,20 @@ export function ModulePage() {
 
       <h2 className="text-xl font-semibold mt-8 mb-3">Уроки</h2>
       <ul className="space-y-2">
-        {lessons.map((l) => (
+        {lessons.map((l, index) => (
           <li key={l.id}>
             <Link
               to={`/m/${mod.id}/l/${l.id}`}
-              className="block rounded border border-slate-200 bg-white p-3 hover:bg-slate-50"
+              className="flex items-start gap-3 rounded border border-slate-200 bg-white p-3 hover:bg-slate-50"
             >
-              <div className="font-medium">{l.title}</div>
-              <div className="text-sm text-slate-500">
-                {l.summary} · ~{l.estimatedMinutes} мин
+              <span className="text-slate-400 text-sm font-mono mt-0.5 w-6 shrink-0">
+                {index + 1}.
+              </span>
+              <div>
+                <div className="font-medium">{l.title}</div>
+                <div className="text-sm text-slate-500">
+                  {l.summary} · ~{l.estimatedMinutes} мин
+                </div>
               </div>
             </Link>
           </li>
