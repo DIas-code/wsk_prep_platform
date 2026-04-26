@@ -51,14 +51,14 @@ export function ProgressBackup() {
       <button
         type="button"
         onClick={onExport}
-        className="rounded border border-slate-300 bg-white px-3 py-1 hover:bg-slate-50"
+        className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 focus-ring transition"
       >
         Экспорт прогресса
       </button>
       <button
         type="button"
         onClick={onPickFile}
-        className="rounded border border-slate-300 bg-white px-3 py-1 hover:bg-slate-50"
+        className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300 focus-ring transition"
       >
         Импорт прогресса
       </button>

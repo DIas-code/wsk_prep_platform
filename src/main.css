@@ -3,13 +3,100 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
+}
+
+html,
+body {
+  @apply min-h-full;
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply bg-slate-50 text-slate-900 antialiased font-sans;
+  background-image:
+    radial-gradient(1200px 600px at 90% -10%, rgba(53, 99, 245, 0.08), transparent 60%),
+    radial-gradient(900px 500px at -10% 0%, rgba(16, 185, 129, 0.06), transparent 60%);
+  background-attachment: fixed;
 }
 
+::selection {
+  @apply bg-brand-200/70 text-brand-900;
+}
+
+/* Custom scrollbar — subtle, only for code/scroll regions */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.4) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.35);
+  border-radius: 8px;
+}
+
+/* Shiki code block container — Shiki injects its own theme background; we only style geometry */
 .shiki {
-  @apply rounded-lg text-sm leading-relaxed overflow-x-auto p-4;
+  @apply rounded-lg text-sm leading-relaxed overflow-x-auto p-4 scrollbar-thin border border-slate-200;
+}
+
+/* Markdown prose tweaks */
+.prose pre {
+  @apply bg-transparent p-0;
+}
+.prose code::before,
+.prose code::after {
+  content: "" !important;
+}
+.prose :not(pre) > code {
+  @apply bg-slate-100 text-slate-800 rounded px-1.5 py-0.5 text-[0.875em] font-mono font-medium;
+}
+.prose a {
+  @apply text-brand-600 no-underline hover:underline;
+}
+.prose h2 {
+  @apply mt-10 mb-3 text-slate-900;
+}
+.prose h3 {
+  @apply mt-6 mb-2 text-slate-900;
+}
+
+/* Focus ring helper */
+.focus-ring {
+  @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50;
+}
+
+/* Card helper */
+.card {
+  @apply rounded-2xl border border-slate-200/80 bg-white shadow-soft;
+}
+.card-hover {
+  @apply transition duration-200 hover:-translate-y-0.5 hover:shadow-lift hover:border-slate-300;
+}
+
+/* Pill / badge */
+.pill {
+  @apply inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-xs font-medium text-slate-600;
+}
+
+/* Subtle in-page section header line */
+.section-title {
+  @apply text-xl font-semibold tracking-tight text-slate-900;
+}
+
+/* Smooth animations on route content */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.fade-up {
+  animation: fadeUp 0.25s ease-out both;
 }

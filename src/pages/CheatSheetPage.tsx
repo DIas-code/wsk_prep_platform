@@ -1,5 +1,8 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useMemo, useState } from "react";
+
+import { ShikiCode } from "../ui/ShikiCode";
+import { PageContainer } from "../ui/AppShell";
+import { BackLink, Badge, PageHeader } from "../ui/components";
 
 type Section = {
   id: string;
@@ -465,72 +468,135 @@ export function CheatSheetPage() {
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
-  const filtered = SECTIONS.map((sec) => ({
-    ...sec,
-    items: sec.items.filter(
-      (item) =>
-        !search ||
-        item.title.toLowerCase().includes(search.toLowerCase()) ||
-        item.description.toLowerCase().includes(search.toLowerCase()) ||
-        item.code.toLowerCase().includes(search.toLowerCase()),
-    ),
-  })).filter((sec) => sec.items.length > 0);
+  const q = search.trim().toLowerCase();
+  const filtered = useMemo(
+    () =>
+      SECTIONS.map((sec) => ({
+        ...sec,
+        items: sec.items.filter(
+          (item) =>
+            !q ||
+            item.title.toLowerCase().includes(q) ||
+            item.description.toLowerCase().includes(q) ||
+            item.code.toLowerCase().includes(q),
+        ),
+      })).filter((sec) => sec.items.length > 0),
+    [q],
+  );
+
+  const visibleSections = q
+    ? filtered
+    : activeSection
+      ? filtered.filter((s) => s.id === activeSection)
+      : filtered;
+
+  const totalItems = SECTIONS.reduce((a, s) => a + s.items.length, 0);
 
   return (
-    <div className="max-w-4xl mx-auto p-8">
-      <Link to="/" className="text-sm text-slate-500 hover:underline">
-        ← Все модули
-      </Link>
-      <h1 className="text-3xl font-semibold mt-2">Cheat Sheet: C# .NET MAUI</h1>
-      <p className="text-slate-600 mt-1 mb-6">
-        Полезные команды и паттерны для решения задач WorldSkills Sessions 1–5.
-      </p>
+    <PageContainer size="wide">
+      <BackLink to="/">Все модули</BackLink>
 
-      <input
-        type="search"
-        placeholder="Поиск по командам…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="w-full border border-slate-300 rounded-lg px-4 py-2 mb-6 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+      <PageHeader
+        eyebrow="Cheat Sheet"
+        title="C# · .NET MAUI"
+        description={`${totalItems} рецептов и паттернов для WorldSkills Sessions 1–5. Поиск работает по названию, описанию и содержимому кода.`}
       />
 
-      <div className="flex flex-wrap gap-2 mb-8">
-        {SECTIONS.map((sec) => (
+      <div className="relative mb-8">
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+          <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+            <path
+              fillRule="evenodd"
+              d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zm-7 5.5a7 7 0 1112.45 4.39l3.58 3.58a1 1 0 01-1.42 1.42l-3.58-3.58A7 7 0 012 9z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </span>
+        <input
+          type="search"
+          placeholder="Поиск по командам и коду…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full border border-slate-300 rounded-xl pl-10 pr-4 py-2.5 text-sm bg-white shadow-soft focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-brand-400"
+        />
+        {search && (
           <button
-            key={sec.id}
-            onClick={() => {
-              setActiveSection(activeSection === sec.id ? null : sec.id);
-              setSearch("");
-            }}
-            className={`text-xs px-3 py-1 rounded-full border transition ${
-              activeSection === sec.id
-                ? "bg-blue-600 text-white border-blue-600"
-                : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
-            }`}
+            onClick={() => setSearch("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+            aria-label="Очистить"
           >
-            {sec.title}
+            ×
           </button>
-        ))}
+        )}
       </div>
 
-      <div className="space-y-10">
-        {(search
-          ? filtered
-          : activeSection
-          ? filtered.filter((s) => s.id === activeSection)
-          : filtered
-        ).map((sec) => (
-          <section key={sec.id}>
-            <h2 className="text-xl font-semibold mb-4 text-slate-800">{sec.title}</h2>
-            <div className="space-y-4">
-              {sec.items.map((item, i) => (
-                <CheatCard key={i} item={item} />
-              ))}
+      <div className="grid gap-8 lg:grid-cols-[220px_1fr]">
+        <aside className="lg:sticky lg:top-20 lg:self-start">
+          <div className="text-xs uppercase tracking-wide text-slate-500 font-semibold mb-2">
+            Категории
+          </div>
+          <nav className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible scrollbar-thin">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSection(null);
+                setSearch("");
+              }}
+              className={`shrink-0 text-left px-3 py-1.5 rounded-md text-sm transition focus-ring ${
+                activeSection === null && !q
+                  ? "bg-brand-50 text-brand-700 font-medium"
+                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              }`}
+            >
+              Все ({SECTIONS.length})
+            </button>
+            {SECTIONS.map((sec) => (
+              <button
+                key={sec.id}
+                type="button"
+                onClick={() => {
+                  setActiveSection(activeSection === sec.id ? null : sec.id);
+                  setSearch("");
+                }}
+                className={`shrink-0 flex items-center justify-between gap-2 text-left px-3 py-1.5 rounded-md text-sm transition focus-ring ${
+                  activeSection === sec.id
+                    ? "bg-brand-50 text-brand-700 font-medium"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <span className="truncate">{sec.title}</span>
+                <span className="text-xs text-slate-400 tabular-nums">
+                  {sec.items.length}
+                </span>
+              </button>
+            ))}
+          </nav>
+        </aside>
+
+        <div className="space-y-10 min-w-0">
+          {visibleSections.length === 0 && (
+            <div className="card p-8 text-center text-slate-500">
+              По запросу{" "}
+              <span className="font-medium text-slate-800">«{search}»</span> ничего не
+              найдено.
             </div>
-          </section>
-        ))}
+          )}
+          {visibleSections.map((sec) => (
+            <section key={sec.id}>
+              <h2 className="section-title mb-4 flex items-center gap-2">
+                {sec.title}
+                <Badge tone="slate">{sec.items.length}</Badge>
+              </h2>
+              <div className="space-y-4">
+                {sec.items.map((item, i) => (
+                  <CheatCard key={i} item={item} />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }
 
@@ -545,22 +611,44 @@ function CheatCard({ item }: { item: CheatItem }) {
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-      <div className="flex items-start justify-between px-4 py-3 bg-slate-50 border-b border-slate-200">
-        <div>
-          <div className="font-medium text-sm">{item.title}</div>
+    <div className="card overflow-hidden">
+      <div className="flex items-start justify-between gap-4 px-4 py-3 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="font-semibold text-sm text-slate-900">{item.title}</div>
+            {item.lang && <Badge tone="brand">{item.lang}</Badge>}
+          </div>
           <div className="text-xs text-slate-500 mt-0.5">{item.description}</div>
         </div>
         <button
           onClick={copy}
-          className="text-xs text-slate-400 hover:text-slate-700 ml-4 shrink-0"
+          className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 focus-ring transition"
         >
-          {copied ? "Скопировано ✓" : "Копировать"}
+          {copied ? (
+            <>
+              <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5 text-emerald-600">
+                <path
+                  fillRule="evenodd"
+                  d="M16.7 5.3a1 1 0 010 1.4l-7.5 7.5a1 1 0 01-1.4 0l-3.5-3.5a1 1 0 011.4-1.4l2.8 2.8 6.8-6.8a1 1 0 011.4 0z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              Скопировано
+            </>
+          ) : (
+            <>
+              <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5">
+                <path d="M8 2a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V4a2 2 0 00-2-2H8z" />
+                <path d="M4 6a2 2 0 012-2v10a2 2 0 002 2h6a2 2 0 01-2 2H6a2 2 0 01-2-2V6z" />
+              </svg>
+              Копировать
+            </>
+          )}
         </button>
       </div>
-      <pre className="text-xs p-4 overflow-x-auto leading-relaxed text-slate-800 bg-white">
-        <code>{item.code}</code>
-      </pre>
+      <div className="px-1 pb-1 pt-1">
+        <ShikiCode code={item.code} language={item.lang ?? "csharp"} />
+      </div>
     </div>
   );
 }

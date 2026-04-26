@@ -5,6 +5,15 @@ import { loadProgress } from "../progress/storage";
 import { useContent } from "../ui/ContentContext";
 import { useAsync } from "../ui/useAsync";
 import { pluralize } from "../ui/ru";
+import { PageContainer } from "../ui/AppShell";
+import {
+  BackLink,
+  Badge,
+  ErrorState,
+  LoadingState,
+  PageHeader,
+  ProgressBar,
+} from "../ui/components";
 
 interface ModuleStats {
   module: Module;
@@ -49,10 +58,8 @@ export function DashboardPage() {
     [registry],
   );
 
-  if (state.status === "loading") return <div className="p-8">Загрузка…</div>;
-  if (state.status === "error") {
-    return <div className="p-8 text-red-700">Ошибка: {state.error.message}</div>;
-  }
+  if (state.status === "loading") return <LoadingState />;
+  if (state.status === "error") return <ErrorState message={state.error.message} />;
 
   const progress = loadProgress();
   const stats = state.data.map((m) => computeStats(m, progress));
@@ -61,46 +68,106 @@ export function DashboardPage() {
   const totalLessonsAll = stats.reduce((a, s) => a + s.lessonsTotal, 0);
   const totalTasksAttempted = stats.reduce((a, s) => a + s.tasksAttempted, 0);
   const totalTasksAll = stats.reduce((a, s) => a + s.tasksTotal, 0);
+  const overallPct =
+    totalLessonsAll === 0 ? 0 : Math.round((totalLessonsDone / totalLessonsAll) * 100);
 
   return (
-    <div className="max-w-5xl mx-auto p-8">
-      <div className="flex items-baseline gap-3 mb-2">
-        <Link to="/" className="text-sm text-slate-500 hover:underline">
-          ←
-        </Link>
-        <h1 className="text-3xl font-semibold">Прогресс</h1>
-      </div>
-      <p className="text-slate-600 mb-8">
-        Сводка по всем модулям. Данные читаются из <code>localStorage</code> — никто не видит
-        их, кроме тебя.
-      </p>
+    <PageContainer>
+      <BackLink to="/">Главная</BackLink>
 
-      <div className="grid gap-4 sm:grid-cols-3 mb-8">
-        <Kpi label="Уроков пройдено" value={`${totalLessonsDone} / ${totalLessonsAll}`} />
-        <Kpi label="Задач начато" value={`${totalTasksAttempted} / ${totalTasksAll}`} />
+      <PageHeader
+        eyebrow="Дашборд"
+        title="Прогресс"
+        description={
+          <>
+            Сводка по всем модулям. Данные читаются из <code className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">localStorage</code> — никто, кроме тебя, их не видит.
+          </>
+        }
+      />
+
+      <div className="card p-6 mb-8 relative overflow-hidden">
+        <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-brand-500/10 blur-2xl" aria-hidden />
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <div className="text-xs uppercase tracking-wide text-slate-500 font-semibold">
+              Общий прогресс
+            </div>
+            <div className="mt-1 text-4xl font-bold tabular-nums text-slate-900">
+              {overallPct}%
+            </div>
+            <div className="mt-1 text-sm text-slate-500">
+              {totalLessonsDone} из {totalLessonsAll}{" "}
+              {pluralize(totalLessonsAll, "урока", "уроков", "уроков")} пройдено
+            </div>
+          </div>
+          <div className="text-right text-xs text-slate-500">
+            Обновлено: {new Date(progress.updatedAt).toLocaleString("ru-RU")}
+          </div>
+        </div>
+        <ProgressBar value={overallPct} className="mt-4" tone="brand" />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3 mb-10">
         <Kpi
-          label="Обновлено"
-          value={new Date(progress.updatedAt).toLocaleString("ru-RU")}
-          small
+          label="Уроки"
+          value={`${totalLessonsDone} / ${totalLessonsAll}`}
+          tone="brand"
+          icon={<BookIcon />}
+        />
+        <Kpi
+          label="Задания начаты"
+          value={`${totalTasksAttempted} / ${totalTasksAll}`}
+          tone="violet"
+          icon={<FlagIcon />}
+        />
+        <Kpi
+          label="Модулей"
+          value={`${stats.length}`}
+          tone="emerald"
+          icon={<GridIcon />}
         />
       </div>
 
-      <h2 className="text-xl font-semibold mb-3">По модулям</h2>
+      <h2 className="section-title mb-4">По модулям</h2>
       <div className="grid gap-3">
         {stats.map((s) => (
           <ModuleRow key={s.module.id} stats={s} />
         ))}
       </div>
-    </div>
+    </PageContainer>
   );
 }
 
-function Kpi({ label, value, small }: { label: string; value: string; small?: boolean }) {
+function Kpi({
+  label,
+  value,
+  tone,
+  icon,
+}: {
+  label: string;
+  value: string;
+  tone: "brand" | "violet" | "emerald";
+  icon: React.ReactNode;
+}) {
+  const map: Record<string, string> = {
+    brand: "bg-brand-50 text-brand-700",
+    violet: "bg-violet-50 text-violet-700",
+    emerald: "bg-emerald-50 text-emerald-700",
+  };
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
-      <div className={small ? "text-sm font-medium mt-1" : "text-2xl font-semibold mt-1"}>
-        {value}
+    <div className="card p-5 flex items-center gap-4">
+      <span
+        className={`inline-flex h-11 w-11 items-center justify-center rounded-xl ${map[tone]}`}
+      >
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <div className="text-xs uppercase tracking-wide text-slate-500 font-semibold">
+          {label}
+        </div>
+        <div className="text-2xl font-semibold tabular-nums mt-0.5 text-slate-900">
+          {value}
+        </div>
       </div>
     </div>
   );
@@ -109,40 +176,51 @@ function Kpi({ label, value, small }: { label: string; value: string; small?: bo
 function ModuleRow({ stats }: { stats: ModuleStats }) {
   const { module, lessonsDone, lessonsTotal, tasksAttempted, tasksTotal, avgSelfScore } = stats;
   const lessonsPct = lessonsTotal === 0 ? 0 : Math.round((lessonsDone / lessonsTotal) * 100);
+  const accent = module.accent ?? "#3563f5";
 
   return (
     <Link
       to={`/m/${module.id}`}
-      className="block rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition"
-      style={module.accent ? { borderLeft: `4px solid ${module.accent}` } : undefined}
+      className="card card-hover group relative block p-5 focus-ring"
     >
+      <div
+        aria-hidden
+        className="absolute inset-y-0 left-0 w-1 rounded-l-2xl"
+        style={{ background: accent }}
+      />
       <div className="flex items-baseline justify-between gap-3">
-        <div className="font-semibold">{module.title}</div>
-        <div className="text-sm text-slate-500">{lessonsPct}%</div>
+        <div className="font-semibold text-slate-900">{module.title}</div>
+        <div className="text-sm text-slate-500 tabular-nums">{lessonsPct}%</div>
       </div>
-      <div className="h-2 bg-slate-200 rounded mt-2 overflow-hidden">
-        <div
-          className="h-full bg-emerald-500 transition-all"
-          style={{ width: `${lessonsPct}%` }}
-        />
-      </div>
-      <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
+      <ProgressBar
+        value={lessonsPct}
+        className="mt-2"
+        tone={lessonsPct === 100 ? "emerald" : "brand"}
+      />
+      <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
         <Stat label="Уроки">
-          {lessonsDone} / {lessonsTotal}{" "}
-          <span className="text-slate-400 text-xs">
-            {pluralize(lessonsTotal, "урок", "урока", "уроков")}
+          <span className="tabular-nums">
+            {lessonsDone} / {lessonsTotal}
           </span>
         </Stat>
         <Stat label="Задачи">
-          {tasksAttempted} / {tasksTotal}{" "}
-          <span className="text-slate-400 text-xs">
-            {pluralize(tasksTotal, "начата", "начаты", "начато")}
+          <span className="tabular-nums">
+            {tasksAttempted} / {tasksTotal}
           </span>
         </Stat>
         <Stat label="Self-score">
-          {avgSelfScore === null ? "—" : `${avgSelfScore}%`}
+          {avgSelfScore === null ? (
+            <span className="text-slate-400">—</span>
+          ) : (
+            <span className="tabular-nums">{avgSelfScore}%</span>
+          )}
         </Stat>
       </div>
+      {lessonsPct === 100 && (
+        <Badge tone="emerald" className="absolute right-4 top-4">
+          ✓ полностью пройдено
+        </Badge>
+      )}
     </Link>
   );
 }
@@ -150,8 +228,34 @@ function ModuleRow({ stats }: { stats: ModuleStats }) {
 function Stat({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="font-medium mt-0.5">{children}</div>
+      <div className="text-xs uppercase tracking-wide text-slate-500 font-medium">
+        {label}
+      </div>
+      <div className="font-medium mt-0.5 text-slate-800">{children}</div>
     </div>
+  );
+}
+
+function BookIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden>
+      <path d="M10 3a3 3 0 00-3 3v9a3 3 0 003-3h7V3h-7z" />
+      <path d="M3 6a3 3 0 013-3h1v12H6a3 3 0 00-3 3V6z" />
+    </svg>
+  );
+}
+function FlagIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden>
+      <path d="M3 3a1 1 0 011 1v12a1 1 0 11-2 0V4a1 1 0 011-1z" />
+      <path d="M5 4a1 1 0 011-1h9.586a1 1 0 01.707 1.707L13 8l3.293 3.293A1 1 0 0115.586 13H6a1 1 0 01-1-1V4z" />
+    </svg>
+  );
+}
+function GridIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5" aria-hidden>
+      <path d="M3 3h6v6H3zM11 3h6v6h-6zM3 11h6v6H3zM11 11h6v6h-6z" />
+    </svg>
   );
 }
